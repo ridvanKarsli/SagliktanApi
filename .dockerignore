@@ -1,0 +1,6 @@
+target/
+.idea/
+.git/
+*.iml
+.mvn/wrapper/maven-wrapper.jar
+src/main/resources/application-secrets.properties
