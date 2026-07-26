@@ -1,0 +1,216 @@
+package com.ridvankarsli.sagliktanapi.service.impl;
+
+import com.ridvankarsli.sagliktanapi.domain.Role;
+import com.ridvankarsli.sagliktanapi.domain.User;
+import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
+import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
+import com.ridvankarsli.sagliktanapi.exception.ResourceAlreadyExistsException;
+import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
+import com.ridvankarsli.sagliktanapi.exception.UnauthorizedException;
+import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
+import com.ridvankarsli.sagliktanapi.security.CustomUserDetailsService;
+import com.ridvankarsli.sagliktanapi.security.JwtService;
+import com.ridvankarsli.sagliktanapi.service.AuthService;
+import com.ridvankarsli.sagliktanapi.service.AuthTokens;
+import com.ridvankarsli.sagliktanapi.service.EmailService;
+import com.ridvankarsli.sagliktanapi.util.EmailValidator;
+import io.jsonwebtoken.JwtException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+    private static final int VERIFICATION_CODE_LENGTH = 6;
+    private static final Duration VERIFICATION_CODE_TTL = Duration.ofMinutes(15);
+    private static final Duration RESET_CODE_TTL = Duration.ofMinutes(15);
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+    private final EmailService emailService;
+    private final EmailValidator emailValidator;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    @Override
+    @Transactional
+    public User register(String email, String rawPassword, String firstName, String lastName) {
+        if (!emailValidator.isDeliverable(email)) {
+            throw new BadRequestException("Geçersiz e-posta adresi");
+        }
+
+        String code = generateCode();
+        LocalDateTime codeExpiresAt = LocalDateTime.now().plus(VERIFICATION_CODE_TTL);
+        String passwordHash = passwordEncoder.encode(rawPassword);
+
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user != null) {
+            if (user.isEmailVerified()) {
+                throw new ResourceAlreadyExistsException("Bu e-posta zaten kayıtlı");
+            }
+            // Bu e-posta ile doğrulanmamış eski bir kayıt var — biri (yanlışlıkla
+            // ya da kötü niyetle) başkasının e-postasıyla kayıt olup hiç
+            // doğrulamamış olabilir. Doğrulanmadığı sürece o e-posta gerçek
+            // sahibine sonsuza kadar kapalı kalmasın diye eski kaydın üzerine
+            // yeni bilgilerle yazıyoruz (email squatting'i önlemek için).
+            user.setPasswordHash(passwordHash);
+            user.setFirstName(firstName);
+            user.setLastName(lastName);
+            user.setVerificationCode(code);
+            user.setVerificationCodeExpiresAt(codeExpiresAt);
+        } else {
+            user = User.builder()
+                    .email(email)
+                    .passwordHash(passwordHash)
+                    .firstName(firstName)
+                    .lastName(lastName)
+                    .role(Role.USER)
+                    .emailVerified(false)
+                    .verificationCode(code)
+                    .verificationCodeExpiresAt(codeExpiresAt)
+                    .active(true)
+                    .build();
+        }
+
+        user = userRepository.save(user);
+        emailService.sendVerificationCode(user.getEmail(), code);
+        return user;
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmail(String email, String code) {
+        User user = getUserOrThrow(email);
+
+        if (user.isEmailVerified()) {
+            return; // idempotent: zaten doğrulanmışsa sessizce çık
+        }
+
+        if (user.getVerificationCode() == null || !user.getVerificationCode().equals(code)) {
+            throw new BadRequestException("Doğrulama kodu hatalı");
+        }
+
+        if (user.getVerificationCodeExpiresAt() == null
+                || user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Doğrulama kodunun süresi dolmuş");
+        }
+
+        user.setEmailVerified(true);
+        user.setVerificationCode(null);
+        user.setVerificationCodeExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    @Override
+    public AuthTokens login(String email, String rawPassword) {
+        User user = getUserOrThrow(email);
+
+        if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+            throw new UnauthorizedException("E-posta veya şifre hatalı");
+        }
+
+        if (!user.isActive()) {
+            throw new ForbiddenException("Hesap pasif durumda");
+        }
+
+        if (!user.isEmailVerified()) {
+            throw new ForbiddenException("E-posta adresi doğrulanmamış");
+        }
+
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        return new AuthTokens(
+                jwtService.generateAccessToken(userDetails),
+                jwtService.generateRefreshToken(userDetails)
+        );
+    }
+
+    @Override
+    public AuthTokens refresh(String refreshToken) {
+        String email;
+        try {
+            email = jwtService.extractUsername(refreshToken);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new UnauthorizedException("Geçersiz refresh token");
+        }
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
+        if (!jwtService.isTokenValid(refreshToken, userDetails)) {
+            throw new UnauthorizedException("Geçersiz veya süresi dolmuş refresh token");
+        }
+
+        return new AuthTokens(
+                jwtService.generateAccessToken(userDetails),
+                jwtService.generateRefreshToken(userDetails)
+        );
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BadRequestException("Mevcut şifre hatalı");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void requestPasswordReset(String email) {
+        // Kullanıcı bulunamasa bile aynı şekilde (sessizce) dönülür;
+        // aksi halde bu endpoint hangi e-postaların kayıtlı olduğunu
+        // dışarıya sızdırır (email enumeration).
+        userRepository.findByEmail(email).ifPresent(user -> {
+            String code = generateCode();
+            user.setResetCode(code);
+            user.setResetCodeExpiresAt(LocalDateTime.now().plus(RESET_CODE_TTL));
+            userRepository.save(user);
+            emailService.sendPasswordResetCode(user.getEmail(), code);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(String email, String code, String newPassword) {
+        User user = getUserOrThrow(email);
+
+        if (user.getResetCode() == null || !user.getResetCode().equals(code)) {
+            throw new BadRequestException("Sıfırlama kodu hatalı");
+        }
+
+        if (user.getResetCodeExpiresAt() == null || user.getResetCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Sıfırlama kodunun süresi dolmuş");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setResetCode(null);
+        user.setResetCodeExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    private User getUserOrThrow(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+    }
+
+    private String generateCode() {
+        int code = secureRandom.nextInt((int) Math.pow(10, VERIFICATION_CODE_LENGTH));
+        return String.format("%0" + VERIFICATION_CODE_LENGTH + "d", code);
+    }
+}
