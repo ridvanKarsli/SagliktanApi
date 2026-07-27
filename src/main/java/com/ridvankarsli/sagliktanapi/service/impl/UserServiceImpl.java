@@ -5,6 +5,8 @@ import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,5 +38,10 @@ public class UserServiceImpl implements UserService {
         User user = getById(userId);
         user.setActive(false);
         userRepository.save(user);
+    }
+
+    @Override
+    public Page<User> search(String query, Pageable pageable) {
+        return userRepository.search(query, pageable);
     }
 }

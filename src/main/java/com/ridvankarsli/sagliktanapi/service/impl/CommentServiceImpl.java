@@ -56,8 +56,13 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<Comment> listReplies(Long commentId) {
-        return commentRepository.findByParentCommentIdOrderByCreatedAtAsc(commentId);
+    public List<Comment> listDescendants(Long postId) {
+        return commentRepository.findByPostIdAndParentCommentIdIsNotNullOrderByCreatedAtAsc(postId);
+    }
+
+    @Override
+    public Page<Comment> search(String query, Pageable pageable) {
+        return commentRepository.search(query, pageable);
     }
 
     @Override
@@ -65,6 +70,9 @@ public class CommentServiceImpl implements CommentService {
     public Comment update(Long commentId, Long requesterId, boolean requesterIsAdmin, String content) {
         Comment comment = getById(commentId);
         assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
+        if (comment.isDeleted()) {
+            throw new BadRequestException("Silinmiş bir yorum düzenlenemez");
+        }
         comment.setContent(content);
         return commentRepository.save(comment);
     }
@@ -74,7 +82,11 @@ public class CommentServiceImpl implements CommentService {
     public void delete(Long commentId, Long requesterId, boolean requesterIsAdmin) {
         Comment comment = getById(commentId);
         assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
-        commentRepository.delete(comment);
+        if (comment.isDeleted()) {
+            throw new BadRequestException("Bu yorum zaten silinmiş");
+        }
+        comment.setDeleted(true);
+        commentRepository.save(comment);
     }
 
     private Comment getById(Long id) {
@@ -99,9 +111,9 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
-    // Yanıt verilen yorum aynı gönderiye ait olmalı. Zaten bir yanıtsa
-    // (ikinci seviye) derinlik sınırsız büyümesin diye onun yerine en
-    // üstteki yoruma bağlanır - tek seviye nested reply garantisi.
+    // Yanıt verilen yorum (üst-seviye ya da başka bir yanıt olabilir) aynı
+    // gönderiye ait olmalı. Derinlik sınırsızdır - Twitter/Reddit tarzı
+    // yanıta yanıt zincirleri desteklenir.
     private Comment resolveParent(Long parentCommentId, Long postId) {
         if (parentCommentId == null) {
             return null;
@@ -110,6 +122,6 @@ public class CommentServiceImpl implements CommentService {
         if (!parent.getPost().getId().equals(postId)) {
             throw new BadRequestException("Yanıt verilen yorum bu gönderiye ait değil");
         }
-        return parent.getParentComment() != null ? parent.getParentComment() : parent;
+        return parent;
     }
 }

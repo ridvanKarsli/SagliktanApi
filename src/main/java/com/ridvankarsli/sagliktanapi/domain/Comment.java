@@ -48,10 +48,9 @@ public class Comment {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    // Null ise bu üst-seviye bir yorumdur; dolu ise bir yoruma verilen
-    // yanıttır. Derinlik tek seviyeyle sınırlı tutuluyor - bkz.
-    // CommentServiceImpl.resolveParent (yanıta yanıt otomatik olarak
-    // en üstteki yoruma bağlanır).
+    // Null ise bu üst-seviye bir yorumdur; dolu ise bir yoruma (ya da bir
+    // yanıta) verilen yanıttır. Derinlik sınırsızdır - bkz.
+    // CommentServiceImpl / CommentResponse.buildTree.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_comment_id")
     private Comment parentComment;
@@ -59,6 +58,12 @@ public class Comment {
     @OneToMany(mappedBy = "parentComment", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Comment> replies = new HashSet<>();
+
+    // Soft delete: yorum silindiğinde satır kalır, içerik yerine placeholder
+    // gösterilir (bkz. CommentResponse) - alt yanıtlar zincirde kopmadan durur.
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;

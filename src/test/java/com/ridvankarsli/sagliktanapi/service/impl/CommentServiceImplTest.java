@@ -5,6 +5,7 @@ import com.ridvankarsli.sagliktanapi.domain.DiseaseGroup;
 import com.ridvankarsli.sagliktanapi.domain.Post;
 import com.ridvankarsli.sagliktanapi.domain.SubGroup;
 import com.ridvankarsli.sagliktanapi.domain.User;
+import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
 import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
@@ -103,7 +104,7 @@ class CommentServiceImplTest {
     }
 
     @Test
-    void create_flattensReplyToReply_toTopLevelAncestor() {
+    void create_keepsRealParent_whenReplyingToAReply() {
         Comment topLevelComment = Comment.builder().id(50L).post(post).user(user).content("Ana yorum").build();
         Comment firstReply = Comment.builder().id(51L).post(post).user(user).content("İlk yanıt")
                 .parentComment(topLevelComment).build();
@@ -115,10 +116,36 @@ class CommentServiceImplTest {
         when(commentRepository.findById(51L)).thenReturn(Optional.of(firstReply));
         when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Bir yanıta yanıt verilirse (51L'e), yeni yorum ikinci seviyede
-        // kalmasın diye otomatik olarak en üstteki yoruma (50L) bağlanmalı.
+        // Bir yanıta yanıt verilirse (51L'e), derinlik sınırsız olduğu için
+        // artık en üstteki yoruma değil, doğrudan yanıtlanan yoruma (51L)
+        // bağlanmalı.
         Comment replyToReply = commentService.create(POST_ID, USER_ID, "Yanıta yanıt", 51L);
 
-        assertEquals(topLevelComment, replyToReply.getParentComment());
+        assertEquals(firstReply, replyToReply.getParentComment());
+    }
+
+    @Test
+    void delete_marksCommentAsDeleted_insteadOfRemovingRow() {
+        Comment comment = Comment.builder().id(50L).post(post).user(user).content("Ana yorum").build();
+        when(commentRepository.findById(50L)).thenReturn(Optional.of(comment));
+        when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        commentService.delete(50L, USER_ID, false);
+
+        assertEquals(true, comment.isDeleted());
+        verify(commentRepository, never()).delete(any(Comment.class));
+        verify(commentRepository).save(comment);
+    }
+
+    @Test
+    void update_throwsBadRequest_whenCommentAlreadyDeleted() {
+        Comment comment = Comment.builder().id(50L).post(post).user(user).content("Ana yorum")
+                .deleted(true).build();
+        when(commentRepository.findById(50L)).thenReturn(Optional.of(comment));
+
+        assertThrows(BadRequestException.class,
+                () -> commentService.update(50L, USER_ID, false, "Düzenlenmiş içerik"));
+
+        verify(commentRepository, never()).save(any());
     }
 }

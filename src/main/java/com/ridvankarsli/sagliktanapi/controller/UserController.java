@@ -5,6 +5,7 @@ import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -65,5 +67,12 @@ public class UserController {
             Pageable pageable
     ) {
         return PageResponse.from(postService.listByUser(principal.getId(), pageable).map(PostResponse::from));
+    }
+
+    // Gelişmiş arama: ad/soyada göre kişi arama (bkz. V7 migration).
+    // E-posta gibi hassas alanlar döndürülmez - bkz. UserSearchResponse.
+    @GetMapping("/search")
+    public PageResponse<UserSearchResponse> search(@RequestParam String q, Pageable pageable) {
+        return PageResponse.from(userService.search(q, pageable).map(UserSearchResponse::from));
     }
 }
