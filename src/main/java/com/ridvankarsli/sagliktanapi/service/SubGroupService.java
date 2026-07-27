@@ -15,4 +15,6 @@ public interface SubGroupService {
     SubGroup update(Long id, String name, String description);
 
     void delete(Long id);
+
+    long countPosts(Long subGroupId);
 }

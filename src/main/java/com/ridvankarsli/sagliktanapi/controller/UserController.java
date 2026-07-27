@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -57,7 +58,7 @@ public class UserController {
     public List<DiseaseGroupResponse> myDiseaseGroups(@AuthenticationPrincipal CustomUserDetails principal) {
         return diseaseGroupService.listUserGroups(principal.getId())
                 .stream()
-                .map(DiseaseGroupResponse::from)
+                .map(g -> DiseaseGroupResponse.from(g, diseaseGroupService.countMembers(g.getId())))
                 .toList();
     }
 
@@ -74,5 +75,20 @@ public class UserController {
     @GetMapping("/search")
     public PageResponse<UserSearchResponse> search(@RequestParam String q, Pageable pageable) {
         return PageResponse.from(userService.search(q, pageable).map(UserSearchResponse::from));
+    }
+
+    // Başka bir kullanıcının herkese açık profili: arama sonuçlarında ya da
+    // bir postun/yorumun altında isme tıklayınca gidilen sayfa. E-posta gibi
+    // hassas alanlar döndürülmez - bkz. UserSearchResponse. Spring, "me" ve
+    // "search" gibi sabit path segmentlerini {id} değişkeninden önce
+    // eşleştirdiği için bu route'larla çakışmaz.
+    @GetMapping("/{id}")
+    public UserSearchResponse getPublicProfile(@PathVariable Long id) {
+        return UserSearchResponse.from(userService.getById(id));
+    }
+
+    @GetMapping("/{id}/posts")
+    public PageResponse<PostResponse> userPosts(@PathVariable Long id, Pageable pageable) {
+        return PageResponse.from(postService.listByUser(id, pageable).map(PostResponse::from));
     }
 }

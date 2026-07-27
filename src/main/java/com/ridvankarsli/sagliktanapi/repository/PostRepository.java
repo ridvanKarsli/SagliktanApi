@@ -11,6 +11,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findBySubGroupId(Long subGroupId, Pageable pageable);
 
+    // Alt grup listesinde gösterilen sohbet (post) sayısı
+    long countBySubGroupId(Long subGroupId);
+
     Page<Post> findByUserId(Long userId, Pageable pageable);
 
     // Rapor 4.5: PostgreSQL Full-Text Search (search_vector, migration'daki

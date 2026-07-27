@@ -23,5 +23,7 @@ public interface DiseaseGroupService {
 
     List<User> listMembers(Long diseaseGroupId);
 
+    long countMembers(Long diseaseGroupId);
+
     List<DiseaseGroup> listUserGroups(Long userId);
 }

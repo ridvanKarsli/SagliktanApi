@@ -4,6 +4,7 @@ import com.ridvankarsli.sagliktanapi.domain.DiseaseGroup;
 import com.ridvankarsli.sagliktanapi.domain.SubGroup;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.DiseaseGroupRepository;
+import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.service.SubGroupService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class SubGroupServiceImpl implements SubGroupService {
 
     private final SubGroupRepository subGroupRepository;
     private final DiseaseGroupRepository diseaseGroupRepository;
+    private final PostRepository postRepository;
 
     @Override
     public List<SubGroup> listByDiseaseGroup(Long diseaseGroupId) {
@@ -61,5 +63,10 @@ public class SubGroupServiceImpl implements SubGroupService {
             throw new ResourceNotFoundException("Alt grup bulunamadı");
         }
         subGroupRepository.deleteById(id);
+    }
+
+    @Override
+    public long countPosts(Long subGroupId) {
+        return postRepository.countBySubGroupId(subGroupId);
     }
 }

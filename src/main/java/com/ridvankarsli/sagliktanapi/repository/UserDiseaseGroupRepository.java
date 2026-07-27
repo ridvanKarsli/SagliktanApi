@@ -14,6 +14,9 @@ public interface UserDiseaseGroupRepository extends JpaRepository<UserDiseaseGro
     // Hastalık grubuna üye olan kullanıcıları listeleme (rapor 4.3)
     List<UserDiseaseGroup> findById_DiseaseGroupId(Long diseaseGroupId);
 
+    // Grup listesinde/detayında gösterilen üye sayısı
+    long countById_DiseaseGroupId(Long diseaseGroupId);
+
     boolean existsById_UserIdAndId_DiseaseGroupId(Long userId, Long diseaseGroupId);
 
     void deleteById_UserIdAndId_DiseaseGroupId(Long userId, Long diseaseGroupId);

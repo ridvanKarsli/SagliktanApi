@@ -1,5 +1,6 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.SubGroup;
 import com.ridvankarsli.sagliktanapi.dto.request.SubGroupRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.SubGroupResponse;
 import com.ridvankarsli.sagliktanapi.service.SubGroupService;
@@ -26,7 +27,7 @@ public class SubGroupController {
 
     @GetMapping("/api/disease-groups/{diseaseGroupId}/sub-groups")
     public List<SubGroupResponse> listByDiseaseGroup(@PathVariable Long diseaseGroupId) {
-        return subGroupService.listByDiseaseGroup(diseaseGroupId).stream().map(SubGroupResponse::from).toList();
+        return subGroupService.listByDiseaseGroup(diseaseGroupId).stream().map(this::toResponse).toList();
     }
 
     @PostMapping("/api/disease-groups/{diseaseGroupId}/sub-groups")
@@ -38,7 +39,7 @@ public class SubGroupController {
 
     @GetMapping("/api/sub-groups/{id}")
     public SubGroupResponse getById(@PathVariable Long id) {
-        return SubGroupResponse.from(subGroupService.getById(id));
+        return toResponse(subGroupService.getById(id));
     }
 
     @PutMapping("/api/sub-groups/{id}")
@@ -51,5 +52,9 @@ public class SubGroupController {
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         subGroupService.delete(id);
+    }
+
+    private SubGroupResponse toResponse(SubGroup subGroup) {
+        return SubGroupResponse.from(subGroup, subGroupService.countPosts(subGroup.getId()));
     }
 }

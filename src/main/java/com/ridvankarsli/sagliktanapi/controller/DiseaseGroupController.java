@@ -1,8 +1,9 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.DiseaseGroup;
 import com.ridvankarsli.sagliktanapi.dto.request.DiseaseGroupRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
-import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import jakarta.validation.Valid;
@@ -31,17 +32,23 @@ public class DiseaseGroupController {
 
     @GetMapping
     public List<DiseaseGroupResponse> listAll() {
-        return diseaseGroupService.listAll().stream().map(DiseaseGroupResponse::from).toList();
+        return diseaseGroupService.listAll().stream().map(this::toResponse).toList();
     }
 
     @GetMapping("/{id}")
     public DiseaseGroupResponse getById(@PathVariable Long id) {
-        return DiseaseGroupResponse.from(diseaseGroupService.getById(id));
+        return toResponse(diseaseGroupService.getById(id));
     }
 
+    // Gruba kayıtlı üyelerin herkese açık listesi - e-posta gibi hassas
+    // alanlar döndürülmez, bkz. UserSearchResponse.
     @GetMapping("/{id}/members")
-    public List<UserResponse> listMembers(@PathVariable Long id) {
-        return diseaseGroupService.listMembers(id).stream().map(UserResponse::from).toList();
+    public List<UserSearchResponse> listMembers(@PathVariable Long id) {
+        return diseaseGroupService.listMembers(id).stream().map(UserSearchResponse::from).toList();
+    }
+
+    private DiseaseGroupResponse toResponse(DiseaseGroup group) {
+        return DiseaseGroupResponse.from(group, diseaseGroupService.countMembers(group.getId()));
     }
 
     @PostMapping

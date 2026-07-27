@@ -101,6 +101,11 @@ public class DiseaseGroupServiceImpl implements DiseaseGroupService {
     }
 
     @Override
+    public long countMembers(Long diseaseGroupId) {
+        return userDiseaseGroupRepository.countById_DiseaseGroupId(diseaseGroupId);
+    }
+
+    @Override
     public List<DiseaseGroup> listUserGroups(Long userId) {
         return userDiseaseGroupRepository.findById_UserId(userId)
                 .stream()
