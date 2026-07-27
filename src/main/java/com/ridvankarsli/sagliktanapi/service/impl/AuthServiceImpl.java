@@ -17,6 +17,7 @@ import com.ridvankarsli.sagliktanapi.service.EmailService;
 import com.ridvankarsli.sagliktanapi.util.EmailValidator;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,15 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final EmailValidator emailValidator;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    // SADECE E2E/test ortamı için: true olduğunda kayıt anında e-posta
+    // gerçek SMTP'den gönderilmeden otomatik doğrulanmış sayılır - Playwright
+    // gibi otomasyonların gerçek bir e-posta kutusu okuyamamasını aşmak için.
+    // Varsayılan (ve production'daki tek geçerli değer) false'tur; application-
+    // secrets.properties ya da ortam değişkeni ile elle açılmadıkça hiçbir
+    // etkisi yoktur. Bkz. .github/workflows/e2e.yml - sadece orada true.
+    @Value("${app.testing.auto-verify-email:false}")
+    private boolean autoVerifyEmail;
 
     @Override
     @Transactional
@@ -93,7 +103,16 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user = userRepository.save(user);
-        emailService.sendVerificationCode(user.getEmail(), code);
+
+        if (autoVerifyEmail) {
+            user.setEmailVerified(true);
+            user.setVerificationCode(null);
+            user.setVerificationCodeExpiresAt(null);
+            user = userRepository.save(user);
+        } else {
+            emailService.sendVerificationCode(user.getEmail(), code);
+        }
+
         return user;
     }
 
