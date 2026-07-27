@@ -8,7 +8,7 @@ import com.ridvankarsli.sagliktanapi.domain.User;
 // ince bir DTO <-> domain dönüşüm katmanı olarak eklenecek.
 public interface AuthService {
 
-    User register(String email, String rawPassword, String firstName, String lastName);
+    User register(String email, String rawPassword, String firstName, String lastName, boolean kvkkConsent);
 
     void verifyEmail(String email, String code);
 

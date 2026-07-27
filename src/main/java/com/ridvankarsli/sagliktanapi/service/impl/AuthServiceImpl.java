@@ -44,9 +44,16 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public User register(String email, String rawPassword, String firstName, String lastName) {
+    public User register(String email, String rawPassword, String firstName, String lastName, boolean kvkkConsent) {
         if (!emailValidator.isDeliverable(email)) {
             throw new BadRequestException("Geçersiz e-posta adresi");
+        }
+
+        // DTO seviyesinde @AssertTrue zaten bunu zorunlu kılıyor; servis
+        // katmanında da tekrar kontrol ediyoruz ki bu metot ileride başka
+        // bir yerden (ör. admin/import akışı) çağrılırsa boşlukta kalmasın.
+        if (!kvkkConsent) {
+            throw new BadRequestException("Kayıt olmak için KVKK Aydınlatma Metni'ni onaylamanız gerekir");
         }
 
         String code = generateCode();
@@ -69,6 +76,7 @@ public class AuthServiceImpl implements AuthService {
             user.setLastName(lastName);
             user.setVerificationCode(code);
             user.setVerificationCodeExpiresAt(codeExpiresAt);
+            user.setKvkkConsentAt(LocalDateTime.now());
         } else {
             user = User.builder()
                     .email(email)
@@ -80,6 +88,7 @@ public class AuthServiceImpl implements AuthService {
                     .verificationCode(code)
                     .verificationCodeExpiresAt(codeExpiresAt)
                     .active(true)
+                    .kvkkConsentAt(LocalDateTime.now())
                     .build();
         }
 

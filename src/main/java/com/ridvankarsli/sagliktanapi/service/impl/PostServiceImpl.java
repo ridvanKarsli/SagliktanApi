@@ -7,6 +7,7 @@ import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
+import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class PostServiceImpl implements PostService {
     private final PostRepository postRepository;
     private final SubGroupRepository subGroupRepository;
     private final UserRepository userRepository;
+    private final UserDiseaseGroupRepository userDiseaseGroupRepository;
 
     @Override
     @Transactional
@@ -30,6 +32,8 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("Alt grup bulunamadı"));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
+
+        assertMemberOfGroup(userId, subGroup.getDiseaseGroup().getId());
 
         Post post = Post.builder()
                 .subGroup(subGroup)
@@ -89,6 +93,14 @@ public class PostServiceImpl implements PostService {
         }
         if (!ownerId.equals(requesterId)) {
             throw new ForbiddenException("Bu işlem için yetkiniz yok");
+        }
+    }
+
+    // Kullanıcı, gönderi paylaşacağı alt grubun bağlı olduğu hastalık grubuna
+    // üye değilse işlem reddedilir - üye olmayanın gruba post atması engellenir.
+    private void assertMemberOfGroup(Long userId, Long diseaseGroupId) {
+        if (!userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(userId, diseaseGroupId)) {
+            throw new ForbiddenException("Bu hastalık grubuna üye değilsiniz, gönderi paylaşamazsınız");
         }
     }
 }

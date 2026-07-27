@@ -38,7 +38,8 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
         return UserResponse.from(
-                authService.register(request.email(), request.password(), request.firstName(), request.lastName())
+                authService.register(request.email(), request.password(), request.firstName(), request.lastName(),
+                        request.kvkkConsent())
         );
     }
 

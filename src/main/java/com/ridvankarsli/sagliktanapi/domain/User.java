@@ -76,6 +76,11 @@ public class User {
     @Builder.Default
     private boolean active = true;
 
+    // KVKK (6698 sayılı Kanun) kapsamında kayıt sırasında açık rıza
+    // alındığının kaydı - kayıt akışında zorunlu, bkz. AuthServiceImpl.register.
+    @Column(name = "kvkk_consent_at")
+    private LocalDateTime kvkkConsentAt;
+
     // created_at / updated_at değerleri veritabanı tarafından
     // (DEFAULT now() + trigger) yönetiliyor, JPA tarafından yazılmıyor.
     @Column(name = "created_at", insertable = false, updatable = false)

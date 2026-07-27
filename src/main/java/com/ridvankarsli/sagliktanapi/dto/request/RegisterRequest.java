@@ -1,5 +1,6 @@
 package com.ridvankarsli.sagliktanapi.dto.request;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,11 @@ public record RegisterRequest(
 
         @NotBlank(message = "Soyad zorunludur")
         @Size(max = 100)
-        String lastName
+        String lastName,
+
+        // KVKK aydınlatma metni + açık rıza onayı olmadan kayıt tamamlanamaz.
+        // Frontend'in kayıt formunda bu alanı true olarak göndermesi gerekir.
+        @AssertTrue(message = "Kayıt olmak için KVKK Aydınlatma Metni'ni onaylamanız gerekir")
+        boolean kvkkConsent
 ) {
 }

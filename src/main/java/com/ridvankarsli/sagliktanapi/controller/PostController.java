@@ -1,10 +1,14 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
 import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.PostRequest;
+import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
+import com.ridvankarsli.sagliktanapi.dto.response.MessageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
+import com.ridvankarsli.sagliktanapi.service.ContentReportService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PostController {
 
     private final PostService postService;
+    private final ContentReportService contentReportService;
 
     @PostMapping("/api/sub-groups/{subGroupId}/posts")
     @ResponseStatus(HttpStatus.CREATED)
@@ -71,5 +76,16 @@ public class PostController {
     public void delete(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
         postService.delete(id, principal.getId(), isAdmin);
+    }
+
+    @PostMapping("/api/posts/{id}/report")
+    public MessageResponse report(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @Valid @RequestBody(required = false) ReportRequest request
+    ) {
+        String reason = request != null ? request.reason() : null;
+        contentReportService.report(ReportTargetType.POST, id, principal.getId(), reason);
+        return new MessageResponse("Şikayetiniz alındı, teşekkür ederiz");
     }
 }
