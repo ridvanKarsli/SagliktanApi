@@ -3,11 +3,13 @@ package com.ridvankarsli.sagliktanapi.controller;
 import com.ridvankarsli.sagliktanapi.domain.DiseaseGroup;
 import com.ridvankarsli.sagliktanapi.dto.request.DiseaseGroupRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,10 +43,11 @@ public class DiseaseGroupController {
     }
 
     // Gruba kayıtlı üyelerin herkese açık listesi - e-posta gibi hassas
-    // alanlar döndürülmez, bkz. UserSearchResponse.
+    // alanlar döndürülmez (bkz. UserSearchResponse). 1000+ kullanıcı hedefiyle
+    // popüler bir grubun üye sayısı büyüyebileceği için sayfalı dönüyor.
     @GetMapping("/{id}/members")
-    public List<UserSearchResponse> listMembers(@PathVariable Long id) {
-        return diseaseGroupService.listMembers(id).stream().map(UserSearchResponse::from).toList();
+    public PageResponse<UserSearchResponse> listMembers(@PathVariable Long id, Pageable pageable) {
+        return PageResponse.from(diseaseGroupService.listMembers(id, pageable).map(UserSearchResponse::from));
     }
 
     private DiseaseGroupResponse toResponse(DiseaseGroup group) {

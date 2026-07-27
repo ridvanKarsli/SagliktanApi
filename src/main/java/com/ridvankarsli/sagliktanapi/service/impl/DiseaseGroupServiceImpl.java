@@ -11,6 +11,8 @@ import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,11 +95,9 @@ public class DiseaseGroupServiceImpl implements DiseaseGroupService {
     }
 
     @Override
-    public List<User> listMembers(Long diseaseGroupId) {
-        return userDiseaseGroupRepository.findById_DiseaseGroupId(diseaseGroupId)
-                .stream()
-                .map(UserDiseaseGroup::getUser)
-                .toList();
+    public Page<User> listMembers(Long diseaseGroupId, Pageable pageable) {
+        return userDiseaseGroupRepository.findById_DiseaseGroupId(diseaseGroupId, pageable)
+                .map(UserDiseaseGroup::getUser);
     }
 
     @Override
