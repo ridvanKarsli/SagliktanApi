@@ -52,6 +52,16 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.testing.auto-verify-email:false}")
     private boolean autoVerifyEmail;
 
+    // SADECE E2E/test ortamı için: boş değilse ve kaydolan e-posta bu önekle
+    // başlıyorsa kullanıcı otomatik ADMIN rolüyle oluşturulur. Admin panel
+    // E2E testleri gerçek bir admin oturumu gerektiriyor, prod'da admin
+    // bootstrap'ı bilinçli olarak manuel (DB'de elle rol güncelleme) - bu
+    // yüzden ayrı, dar kapsamlı bir test kapısı: varsayılan boş string
+    // olduğundan (ve production'da asla set edilmediğinden) hiçbir etkisi
+    // yoktur. Bkz. .github/workflows/e2e.yml - sadece orada dolu.
+    @Value("${app.testing.auto-admin-email-prefix:}")
+    private String autoAdminEmailPrefix;
+
     @Override
     @Transactional
     public User register(String email, String rawPassword, String firstName, String lastName, boolean kvkkConsent) {
@@ -88,12 +98,13 @@ public class AuthServiceImpl implements AuthService {
             user.setVerificationCodeExpiresAt(codeExpiresAt);
             user.setKvkkConsentAt(LocalDateTime.now());
         } else {
+            boolean grantTestAdmin = !autoAdminEmailPrefix.isBlank() && email.startsWith(autoAdminEmailPrefix);
             user = User.builder()
                     .email(email)
                     .passwordHash(passwordHash)
                     .firstName(firstName)
                     .lastName(lastName)
-                    .role(Role.USER)
+                    .role(grantTestAdmin ? Role.ADMIN : Role.USER)
                     .emailVerified(false)
                     .verificationCode(code)
                     .verificationCodeExpiresAt(codeExpiresAt)
