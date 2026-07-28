@@ -13,6 +13,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -86,6 +87,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // KRİTİK: Spring Security varsayılan olarak token'sız her isteğe bir
+                // AnonymousAuthenticationToken atar ve bu token'ın isAuthenticated()'ı
+                // true döner - bu yüzden anonymous() devre dışı bırakılmadan
+                // .anyRequest().authenticated() token'sız istekleri de GEÇİRİYORDU.
+                // (JwtAuthenticationFilter token yoksa SecurityContext'e hiçbir şey
+                // set etmiyor - o boşluğu Spring'in kendi AnonymousAuthenticationFilter'ı
+                // dolduruyordu.) Anonymous'u tamamen kapatınca token'sız istekte
+                // Authentication null kalıyor ve .authenticated() doğru şekilde
+                // reddedip restAuthenticationEntryPoint üzerinden temiz bir 401 dönüyor.
+                .anonymous(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         // Dikkat: /api/auth/** blanket permitAll DEĞİL — sadece
                         // gerçekten public olan uçlar burada. change-password ve
