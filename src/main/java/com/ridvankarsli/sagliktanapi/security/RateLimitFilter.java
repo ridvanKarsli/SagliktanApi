@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
+
+    // SADECE E2E test ortamında (bkz. SagliktanWeb/.github/workflows/e2e.yml
+    // - APP_TESTING_RATE_LIMIT_MULTIPLIER=1000) limitleri pratikte
+    // devre dışı bırakmak için çarpan. Prod/staging'de bu değişken hiç
+    // tanımlanmadığı için varsayılan 1 kalır, davranış birebir aynı.
+    // app.testing.auto-verify-email ile aynı desen (bkz. AuthServiceImpl).
+    @Value("${app.testing.rate-limit-multiplier:1}")
+    private int testingRateLimitMultiplier;
 
     private record Rule(String path, String method, int limit, Duration window) {
     }
@@ -58,7 +67,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String key = clientIp(request) + ":" + matched.path();
-        if (!rateLimiter.tryConsume(key, matched.limit(), matched.window())) {
+        int effectiveLimit = matched.limit() * testingRateLimitMultiplier;
+        if (!rateLimiter.tryConsume(key, effectiveLimit, matched.window())) {
             HttpStatus status = HttpStatus.TOO_MANY_REQUESTS;
             response.setStatus(status.value());
             response.setContentType("application/json;charset=UTF-8");
