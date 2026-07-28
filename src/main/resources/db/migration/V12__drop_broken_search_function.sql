@@ -1,0 +1,12 @@
+-- V11'deki safe_prefix_tsquery() özel SQL fonksiyonu canlı ortamda arama
+-- uçlarında (posts/comments/users search) sürekli 500 hatasına yol açtı -
+-- bağlantı response body'siz kesiliyordu, kök neden aggregate SQL
+-- fonksiyonu + regconfig DEFAULT parametre kombinasyonundaki bir
+-- Postgres/JDBC tuhaflığı olabilir. Aynı "prefix tsquery" mantığı artık
+-- Java tarafında inşa ediliyor (bkz. SearchQueryUtil) ve hazır bir string
+-- olarak doğrudan to_tsquery()'e veriliyor - bu fonksiyona artık hiçbir
+-- yerden referans verilmiyor, temizlik amaçlı kaldırılıyor.
+--
+-- pg_trgm extension'ı ve trigram index'leri (V11) korunuyor - word_similarity
+-- hâlâ kullanılıyor ve bu kısımda herhangi bir soruna rastlanmadı.
+DROP FUNCTION IF EXISTS safe_prefix_tsquery(text, regconfig);

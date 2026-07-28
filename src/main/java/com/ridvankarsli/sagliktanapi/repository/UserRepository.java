@@ -15,25 +15,24 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    // Gelişmiş arama (V11): ad/soyada göre, search_vector üzerinden prefix
-    // eşleşme (safe_prefix_tsquery) VE pg_trgm word_similarity ile yazım
-    // hatası toleranslı eşleşme aynı sorguda OR ile birleşiyor,
-    // GREATEST(...) skoruna göre en alakalı sonuç en üstte. Hesabı
-    // kapatılmış (active = false) kullanıcılar sonuçlara girmez.
+    // Gelişmiş arama (V11/V12): ad/soyada göre, prefix tsquery string'i
+    // Java'da inşa edilip (bkz. SearchQueryUtil) hazır veriliyor - bkz.
+    // PostRepository.search'teki aynı desen açıklaması. Hesabı kapatılmış
+    // (active = false) kullanıcılar sonuçlara girmez.
     @Query(
             value = "SELECT * FROM users u WHERE u.active = true AND (" +
-                    "    u.search_vector @@ safe_prefix_tsquery(:query) " +
-                    "    OR word_similarity(:query, u.first_name || ' ' || u.last_name) > 0.3" +
+                    "    u.search_vector @@ to_tsquery('turkish', :tsQuery) " +
+                    "    OR word_similarity(:rawQuery, u.first_name || ' ' || u.last_name) > 0.3" +
                     ") ORDER BY GREATEST(" +
-                    "    COALESCE(ts_rank(u.search_vector, safe_prefix_tsquery(:query)), 0), " +
-                    "    word_similarity(:query, u.first_name || ' ' || u.last_name)" +
+                    "    COALESCE(ts_rank(u.search_vector, to_tsquery('turkish', :tsQuery)), 0), " +
+                    "    word_similarity(:rawQuery, u.first_name || ' ' || u.last_name)" +
                     ") DESC",
             countQuery = "SELECT count(*) FROM users u WHERE u.active = true AND (" +
-                    "    u.search_vector @@ safe_prefix_tsquery(:query) " +
-                    "    OR word_similarity(:query, u.first_name || ' ' || u.last_name) > 0.3" +
+                    "    u.search_vector @@ to_tsquery('turkish', :tsQuery) " +
+                    "    OR word_similarity(:rawQuery, u.first_name || ' ' || u.last_name) > 0.3" +
                     ")",
             nativeQuery = true)
-    Page<User> search(@Param("query") String query, Pageable pageable);
+    Page<User> search(@Param("rawQuery") String rawQuery, @Param("tsQuery") String tsQuery, Pageable pageable);
 
     // Admin paneli: public search'ün aksine pasif kullanıcıları da içerir,
     // tam metin arama yerine basit ILIKE (admin araması nadir/küçük hacimli,

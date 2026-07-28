@@ -10,6 +10,7 @@ import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -63,7 +64,11 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Page<Post> search(String query, Pageable pageable) {
-        return postRepository.search(query, pageable);
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
+        if (tsQuery == null) {
+            return Page.empty(pageable);
+        }
+        return postRepository.search(query, tsQuery, pageable);
     }
 
     @Override

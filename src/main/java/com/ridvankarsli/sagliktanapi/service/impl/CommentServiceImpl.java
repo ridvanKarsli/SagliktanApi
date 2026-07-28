@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,7 +63,11 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public Page<Comment> search(String query, Pageable pageable) {
-        return commentRepository.search(query, pageable);
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
+        if (tsQuery == null) {
+            return Page.empty(pageable);
+        }
+        return commentRepository.search(query, tsQuery, pageable);
     }
 
     @Override

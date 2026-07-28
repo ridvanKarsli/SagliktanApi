@@ -20,23 +20,21 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     List<Comment> findByPostIdAndParentCommentIdIsNotNullOrderByCreatedAtAsc(Long postId);
 
-    // Gelişmiş arama (V11): search_vector üzerinden prefix eşleşme
-    // (safe_prefix_tsquery) VE pg_trgm word_similarity ile yazım hatası
-    // toleranslı eşleşme aynı sorguda OR ile birleşiyor, GREATEST(...)
-    // skoruna göre en alakalı sonuç en üstte. Silinmiş (soft delete)
-    // yorumlar sonuçlara girmez.
+    // Gelişmiş arama (V11/V12): prefix tsquery string'i Java'da inşa edilip
+    // (bkz. SearchQueryUtil) hazır veriliyor - bkz. PostRepository.search'teki
+    // aynı desen açıklaması. Silinmiş (soft delete) yorumlar sonuçlara girmez.
     @Query(
             value = "SELECT * FROM comments c WHERE c.deleted = false AND (" +
-                    "    c.search_vector @@ safe_prefix_tsquery(:query) " +
-                    "    OR word_similarity(:query, c.content) > 0.3" +
+                    "    c.search_vector @@ to_tsquery('turkish', :tsQuery) " +
+                    "    OR word_similarity(:rawQuery, c.content) > 0.3" +
                     ") ORDER BY GREATEST(" +
-                    "    COALESCE(ts_rank(c.search_vector, safe_prefix_tsquery(:query)), 0), " +
-                    "    word_similarity(:query, c.content)" +
+                    "    COALESCE(ts_rank(c.search_vector, to_tsquery('turkish', :tsQuery)), 0), " +
+                    "    word_similarity(:rawQuery, c.content)" +
                     ") DESC",
             countQuery = "SELECT count(*) FROM comments c WHERE c.deleted = false AND (" +
-                    "    c.search_vector @@ safe_prefix_tsquery(:query) " +
-                    "    OR word_similarity(:query, c.content) > 0.3" +
+                    "    c.search_vector @@ to_tsquery('turkish', :tsQuery) " +
+                    "    OR word_similarity(:rawQuery, c.content) > 0.3" +
                     ")",
             nativeQuery = true)
-    Page<Comment> search(@Param("query") String query, Pageable pageable);
+    Page<Comment> search(@Param("rawQuery") String rawQuery, @Param("tsQuery") String tsQuery, Pageable pageable);
 }

@@ -4,6 +4,7 @@ import com.ridvankarsli.sagliktanapi.domain.User;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.UserService;
+import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +43,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Page<User> search(String query, Pageable pageable) {
-        return userRepository.search(query, pageable);
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
+        if (tsQuery == null) {
+            return Page.empty(pageable);
+        }
+        return userRepository.search(query, tsQuery, pageable);
     }
 }
