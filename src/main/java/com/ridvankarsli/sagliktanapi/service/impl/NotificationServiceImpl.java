@@ -63,15 +63,9 @@ public class NotificationServiceImpl implements NotificationService {
         //
         // NOT: convertAndSendToUser mesajı clientOutboundChannel'a (varsayılan
         // olarak async bir ThreadPoolTaskExecutor) bırakır - gerçek teslimat bu
-        // metod döndükten SONRA, başka bir thread'de gerçekleşir. Yani burada
-        // hata fırlatılmaması teslimatın başarılı olduğu anlamına gelmez;
-        // asıl hata (varsa) o thread'de oluşur ve HTTP yanıtına hiç yansımaz.
-        // Bu yüzden hem gönderim öncesi hem de olası bir senkron hata için log
-        // ekliyoruz - E2E'de "rozet hep 0 kalıyor" tipi sessiz kayıpları teşhis
-        // edebilmek için (bkz. 2026-07-28 E2E #14/#15 teşhis notları).
+        // metod döndükten SONRA, başka bir thread'de gerçekleşir. Burada
+        // yakalanan hata sadece senkron/erken hataları kapsar.
         try {
-            log.info("Bildirim WS push: recipient={}, type={}, notificationId={}",
-                    recipient.getEmail(), type, notification.getId());
             messagingTemplate.convertAndSendToUser(
                     recipient.getEmail(), "/queue/notifications", NotificationResponse.from(notification));
         } catch (RuntimeException e) {
