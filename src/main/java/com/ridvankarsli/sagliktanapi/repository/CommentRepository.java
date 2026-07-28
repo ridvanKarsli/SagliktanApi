@@ -20,14 +20,23 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     List<Comment> findByPostIdAndParentCommentIdIsNotNullOrderByCreatedAtAsc(Long postId);
 
-    // Gelişmiş arama: yorum içeriğinde tam metin arama (bkz. V7 migration,
-    // search_vector kolonu). Silinmiş (soft delete) yorumlar sonuçlara
-    // girmez.
+    // Gelişmiş arama (V11): search_vector üzerinden prefix eşleşme
+    // (safe_prefix_tsquery) VE pg_trgm word_similarity ile yazım hatası
+    // toleranslı eşleşme aynı sorguda OR ile birleşiyor, GREATEST(...)
+    // skoruna göre en alakalı sonuç en üstte. Silinmiş (soft delete)
+    // yorumlar sonuçlara girmez.
     @Query(
-            value = "SELECT * FROM comments c WHERE c.deleted = false " +
-                    "AND c.search_vector @@ plainto_tsquery('turkish', :query)",
-            countQuery = "SELECT count(*) FROM comments c WHERE c.deleted = false " +
-                    "AND c.search_vector @@ plainto_tsquery('turkish', :query)",
+            value = "SELECT * FROM comments c WHERE c.deleted = false AND (" +
+                    "    c.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "    OR word_similarity(:query, c.content) > 0.3" +
+                    ") ORDER BY GREATEST(" +
+                    "    COALESCE(ts_rank(c.search_vector, safe_prefix_tsquery(:query)), 0), " +
+                    "    word_similarity(:query, c.content)" +
+                    ") DESC",
+            countQuery = "SELECT count(*) FROM comments c WHERE c.deleted = false AND (" +
+                    "    c.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "    OR word_similarity(:query, c.content) > 0.3" +
+                    ")",
             nativeQuery = true)
     Page<Comment> search(@Param("query") String query, Pageable pageable);
 }

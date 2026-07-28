@@ -15,14 +15,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    // Gelişmiş arama: ad/soyada göre kişi arama (bkz. V7 migration,
-    // search_vector kolonu). Hesabı kapatılmış (active = false) kullanıcılar
-    // sonuçlara girmez.
+    // Gelişmiş arama (V11): ad/soyada göre, search_vector üzerinden prefix
+    // eşleşme (safe_prefix_tsquery) VE pg_trgm word_similarity ile yazım
+    // hatası toleranslı eşleşme aynı sorguda OR ile birleşiyor,
+    // GREATEST(...) skoruna göre en alakalı sonuç en üstte. Hesabı
+    // kapatılmış (active = false) kullanıcılar sonuçlara girmez.
     @Query(
-            value = "SELECT * FROM users u WHERE u.active = true " +
-                    "AND u.search_vector @@ plainto_tsquery('turkish', :query)",
-            countQuery = "SELECT count(*) FROM users u WHERE u.active = true " +
-                    "AND u.search_vector @@ plainto_tsquery('turkish', :query)",
+            value = "SELECT * FROM users u WHERE u.active = true AND (" +
+                    "    u.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "    OR word_similarity(:query, u.first_name || ' ' || u.last_name) > 0.3" +
+                    ") ORDER BY GREATEST(" +
+                    "    COALESCE(ts_rank(u.search_vector, safe_prefix_tsquery(:query)), 0), " +
+                    "    word_similarity(:query, u.first_name || ' ' || u.last_name)" +
+                    ") DESC",
+            countQuery = "SELECT count(*) FROM users u WHERE u.active = true AND (" +
+                    "    u.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "    OR word_similarity(:query, u.first_name || ' ' || u.last_name) > 0.3" +
+                    ")",
             nativeQuery = true)
     Page<User> search(@Param("query") String query, Pageable pageable);
 

@@ -16,11 +16,14 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.AdminReportItem;
 import com.ridvankarsli.sagliktanapi.service.AdminService;
+import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.service.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -34,6 +37,12 @@ public class AdminServiceImpl implements AdminService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final ContentReportRepository contentReportRepository;
+    // Post/CommentService (repository değil) kasıtlı kullanılıyor: silme
+    // işlemleri owner-or-admin kontrolünden ve (yorum için) soft-delete
+    // mantığından geçmeli - bunları burada tekrar yazmak yerine mevcut,
+    // zaten denetimden geçmiş service metotları çağrılıyor.
+    private final PostService postService;
+    private final CommentService commentService;
 
     @Override
     public AdminStatsResponse getStats() {
@@ -86,14 +95,35 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional
-    public void resolveReport(Long reportId, Long adminId, ReportStatus newStatus) {
+    public void resolveReport(Long reportId, Long adminId, ReportStatus newStatus, boolean deleteContent) {
         ContentReport report = contentReportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Şikayet bulunamadı"));
+
+        // İçerik silme, durum güncellemesiyle AYNI transaction'da yapılır -
+        // silme başarısız olursa (ör. içerik zaten silinmiş) durum
+        // güncellemesi de rollback olur, admin tekrar deneyebilir.
+        if (deleteContent) {
+            if (report.getTargetType() == ReportTargetType.POST) {
+                postService.delete(report.getTargetId(), adminId, true);
+            } else {
+                commentService.delete(report.getTargetId(), adminId, true);
+            }
+        }
 
         report.setStatus(newStatus);
         report.setResolvedBy(userRepository.getReferenceById(adminId));
         report.setResolvedAt(LocalDateTime.now());
         contentReportRepository.save(report);
+    }
+
+    @Override
+    public Page<Post> listPosts(String q, Pageable pageable) {
+        return StringUtils.hasText(q) ? postService.search(q, pageable) : postRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<Comment> listComments(String q, Pageable pageable) {
+        return StringUtils.hasText(q) ? commentService.search(q, pageable) : commentRepository.findAll(pageable);
     }
 
     private AdminReportItem toItem(ContentReport report) {

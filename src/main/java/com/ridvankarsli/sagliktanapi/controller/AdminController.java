@@ -4,6 +4,8 @@ import com.ridvankarsli.sagliktanapi.domain.ReportStatus;
 import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.AdminReportActionRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.AdminUserUpdateRequest;
+import com.ridvankarsli.sagliktanapi.dto.response.AdminCommentResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.AdminPostResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.AdminReportResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.AdminStatsResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.AdminUserResponse;
@@ -14,6 +16,8 @@ import com.ridvankarsli.sagliktanapi.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -76,7 +80,27 @@ public class AdminController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @Valid @RequestBody AdminReportActionRequest request
     ) {
-        adminService.resolveReport(id, principal.getId(), request.status());
-        return new MessageResponse("Şikayet güncellendi");
+        adminService.resolveReport(id, principal.getId(), request.status(), request.deleteContent());
+        return new MessageResponse(request.deleteContent() ? "İçerik silindi, şikayet güncellendi" : "Şikayet güncellendi");
+    }
+
+    // Genel içerik moderasyonu: sadece şikayet edilenler değil TÜM
+    // postlar/yorumlar - silme işlemi için mevcut DELETE /api/posts/{id} ve
+    // DELETE /api/comments/{id} uçları kullanılır (admin zaten ownership
+    // bypass'ına sahip, burada tekrar yazılmadı).
+    @GetMapping("/posts")
+    public PageResponse<AdminPostResponse> listPosts(
+            @RequestParam(required = false) String q,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return PageResponse.from(adminService.listPosts(q, pageable).map(AdminPostResponse::from));
+    }
+
+    @GetMapping("/comments")
+    public PageResponse<AdminCommentResponse> listComments(
+            @RequestParam(required = false) String q,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return PageResponse.from(adminService.listComments(q, pageable).map(AdminCommentResponse::from));
     }
 }

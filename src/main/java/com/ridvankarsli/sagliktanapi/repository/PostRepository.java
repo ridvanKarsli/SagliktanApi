@@ -16,11 +16,21 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findByUserId(Long userId, Pageable pageable);
 
-    // Rapor 4.5: PostgreSQL Full-Text Search (search_vector, migration'daki
-    // GENERATED ALWAYS AS (...) STORED kolonu ve GIN index üzerinden)
+    // Rapor 4.5 + arama iyileştirmesi (V11): search_vector üzerinden prefix
+    // eşleşme (safe_prefix_tsquery, "diyab" -> "diyabet" bulur) VE pg_trgm
+    // word_similarity ile yazım hatası toleranslı eşleşme aynı sorguda OR
+    // ile birleşiyor, GREATEST(...) skoruna göre en alakalı sonuç en üstte.
     @Query(
-            value = "SELECT * FROM posts p WHERE p.search_vector @@ plainto_tsquery('turkish', :query)",
-            countQuery = "SELECT count(*) FROM posts p WHERE p.search_vector @@ plainto_tsquery('turkish', :query)",
+            value = "SELECT * FROM posts p WHERE " +
+                    "p.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "OR word_similarity(:query, p.title || ' ' || p.content) > 0.3 " +
+                    "ORDER BY GREATEST(" +
+                    "    COALESCE(ts_rank(p.search_vector, safe_prefix_tsquery(:query)), 0), " +
+                    "    word_similarity(:query, p.title || ' ' || p.content)" +
+                    ") DESC",
+            countQuery = "SELECT count(*) FROM posts p WHERE " +
+                    "p.search_vector @@ safe_prefix_tsquery(:query) " +
+                    "OR word_similarity(:query, p.title || ' ' || p.content) > 0.3",
             nativeQuery = true)
     Page<Post> search(@Param("query") String query, Pageable pageable);
 }
