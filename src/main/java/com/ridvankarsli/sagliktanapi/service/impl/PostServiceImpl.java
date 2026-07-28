@@ -68,7 +68,7 @@ public class PostServiceImpl implements PostService {
         if (tsQuery == null) {
             return Page.empty(pageable);
         }
-        return postRepository.search(query, tsQuery, pageable);
+        return postRepository.search(query, tsQuery, SearchQueryUtil.stripSort(pageable));
     }
 
     @Override

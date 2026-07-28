@@ -1,5 +1,8 @@
 package com.ridvankarsli.sagliktanapi.util;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import java.util.regex.Pattern;
 
 /**
@@ -51,5 +54,22 @@ public final class SearchQueryUtil {
             sb.append(word).append(":*");
         }
         return sb.isEmpty() ? null : sb.toString();
+    }
+
+    /**
+     * Post/Comment/User arama sorguları kendi ORDER BY GREATEST(relevance)
+     * ifadesini içeren native @Query'ler - Spring Data JPA, Pageable'a bağlı
+     * bir Sort varsa native sorgunun SONUNA ikinci bir "order by ..." ekliyor
+     * ve bu, Postgres'te "syntax error at or near order" ile patlıyor (iki
+     * ORDER BY aynı SELECT'te geçersiz). Özellikle admin panelindeki
+     * /api/admin/posts ve /api/admin/comments uçları @PageableDefault(sort =
+     * "createdAt") kullandığı için arama parametresiyle (q) çağrıldıklarında
+     * bu hatayı her seferinde tetikliyordu (bkz. backend log - 2026-07-28).
+     * Çözüm: bu üç arama sorgusuna verilen Pageable'dan sayfa/boyut dışında
+     * her şeyi (Sort dahil) atıyoruz - relevance sıralaması zaten sorgunun
+     * kendisinde tanımlı, dışarıdan sıralama asla uygulanmamalı.
+     */
+    public static Pageable stripSort(Pageable pageable) {
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
 }

@@ -67,7 +67,7 @@ public class CommentServiceImpl implements CommentService {
         if (tsQuery == null) {
             return Page.empty(pageable);
         }
-        return commentRepository.search(query, tsQuery, pageable);
+        return commentRepository.search(query, tsQuery, SearchQueryUtil.stripSort(pageable));
     }
 
     @Override

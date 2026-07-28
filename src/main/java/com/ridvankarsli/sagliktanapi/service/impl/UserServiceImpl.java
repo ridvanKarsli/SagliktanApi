@@ -47,6 +47,6 @@ public class UserServiceImpl implements UserService {
         if (tsQuery == null) {
             return Page.empty(pageable);
         }
-        return userRepository.search(query, tsQuery, pageable);
+        return userRepository.search(query, tsQuery, SearchQueryUtil.stripSort(pageable));
     }
 }
