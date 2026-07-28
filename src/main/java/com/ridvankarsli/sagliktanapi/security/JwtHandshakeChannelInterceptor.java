@@ -8,6 +8,7 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -29,7 +30,17 @@ public class JwtHandshakeChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        // StompHeaderAccessor.wrap(message) BAĞIMSIZ bir kopya döndürür - accessor
+        // üzerindeki mutasyonlar (setUser dahil) orijinal message'a YANSIMAZ, çünkü
+        // preSend en altta aynı (mutasyona uğramamış) message referansını döndürüyordu.
+        // Sonuç: Principal hiçbir zaman gerçek mesaja iliştirilmiyor, SimpUserRegistry
+        // WS session'ı e-posta altında kaydetmiyor, convertAndSendToUser hedefi
+        // bulamıyor - ama UserDestinationMessageHandler Principal yoksa sessizce
+        // no-op yaptığından ne backend'de ne client'ta hiçbir hata/log görünmüyordu.
+        // MessageHeaderAccessor.getAccessor(...) ise STOMP decoder'ın mesaja
+        // setLeaveMutable(true) ile iliştirdiği GERÇEK mutable accessor'ı döndürür;
+        // bunun üzerindeki mutasyonlar pipeline'daki mesaja gerçekten işleniyor.
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (!StompCommand.CONNECT.equals(accessor.getCommand())) {
             return message;
