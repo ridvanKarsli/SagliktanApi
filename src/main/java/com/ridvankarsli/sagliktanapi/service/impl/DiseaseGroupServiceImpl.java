@@ -96,7 +96,7 @@ public class DiseaseGroupServiceImpl implements DiseaseGroupService {
 
     @Override
     public Page<User> listMembers(Long diseaseGroupId, Pageable pageable) {
-        return userDiseaseGroupRepository.findById_DiseaseGroupId(diseaseGroupId, pageable)
+        return userDiseaseGroupRepository.findById_DiseaseGroupIdOrderByJoinedAtAsc(diseaseGroupId, pageable)
                 .map(UserDiseaseGroup::getUser);
     }
 

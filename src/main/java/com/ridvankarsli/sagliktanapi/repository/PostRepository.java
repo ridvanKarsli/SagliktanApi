@@ -9,12 +9,17 @@ import org.springframework.data.repository.query.Param;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
 
-    Page<Post> findBySubGroupId(Long subGroupId, Pageable pageable);
+    // OrderByCreatedAtDesc: Pageable sort taşımıyorsa (client sort
+    // göndermiyorsa) sayfalar arası deterministik sıra garantisi yok -
+    // ORDER BY olmadan Postgres satır sırası garanti edilmez, bu da art
+    // arda gelen sayfalarda aynı postun tekrar görünmesine ya da bir
+    // postun hiç görünmemesine yol açabilir.
+    Page<Post> findBySubGroupIdOrderByCreatedAtDesc(Long subGroupId, Pageable pageable);
 
     // Alt grup listesinde gösterilen sohbet (post) sayısı
     long countBySubGroupId(Long subGroupId);
 
-    Page<Post> findByUserId(Long userId, Pageable pageable);
+    Page<Post> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     // Rapor 4.5 + arama iyileştirmesi (V11/V12): prefix tsquery string'i
     // artık Java'da (bkz. SearchQueryUtil) inşa edilip hazır olarak

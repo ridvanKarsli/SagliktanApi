@@ -18,6 +18,7 @@ import com.ridvankarsli.sagliktanapi.service.AdminReportItem;
 import com.ridvankarsli.sagliktanapi.service.AdminService;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -57,7 +58,11 @@ public class AdminServiceImpl implements AdminService {
     @Override
     public Page<User> listUsers(String q, Boolean active, Role role, Pageable pageable) {
         String roleParam = role != null ? role.name() : null;
-        return userRepository.adminSearch(q, active, roleParam, pageable);
+        // adminSearch native query'sinin kendi ORDER BY u.created_at DESC'i
+        // var - client bir sort parametresi gönderirse (bkz. listPosts/
+        // listComments'teki aynı sınıf hata, SearchQueryUtil.stripSort
+        // dokümantasyonu) çift ORDER BY SQL syntax hatasına düşer.
+        return userRepository.adminSearch(q, active, roleParam, SearchQueryUtil.stripSort(pageable));
     }
 
     @Override

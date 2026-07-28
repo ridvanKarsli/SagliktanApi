@@ -53,7 +53,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public Page<Comment> listByPost(Long postId, Pageable pageable) {
-        return commentRepository.findByPostIdAndParentCommentIdIsNull(postId, pageable);
+        return commentRepository.findByPostIdAndParentCommentIdIsNullOrderByCreatedAtAsc(postId, pageable);
     }
 
     @Override

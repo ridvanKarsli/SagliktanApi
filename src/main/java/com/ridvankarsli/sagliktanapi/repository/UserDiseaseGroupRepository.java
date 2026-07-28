@@ -15,8 +15,10 @@ public interface UserDiseaseGroupRepository extends JpaRepository<UserDiseaseGro
 
     // Hastalık grubuna üye olan kullanıcıları listeleme (rapor 4.3) - üye
     // sayısı büyüyebileceği için (1000+ kullanıcı hedefi) sayfalı çekiliyor,
-    // bkz. DiseaseGroupController.listMembers.
-    Page<UserDiseaseGroup> findById_DiseaseGroupId(Long diseaseGroupId, Pageable pageable);
+    // bkz. DiseaseGroupController.listMembers. OrderByJoinedAtAsc: en eski
+    // üye en üstte - ayrıca ORDER BY olmadan sayfalar arası sıra garanti
+    // edilmez.
+    Page<UserDiseaseGroup> findById_DiseaseGroupIdOrderByJoinedAtAsc(Long diseaseGroupId, Pageable pageable);
 
     // Grup listesinde/detayında gösterilen üye sayısı
     long countById_DiseaseGroupId(Long diseaseGroupId);

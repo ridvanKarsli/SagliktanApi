@@ -54,12 +54,12 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Page<Post> listBySubGroup(Long subGroupId, Pageable pageable) {
-        return postRepository.findBySubGroupId(subGroupId, pageable);
+        return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, pageable);
     }
 
     @Override
     public Page<Post> listByUser(Long userId, Pageable pageable) {
-        return postRepository.findByUserId(userId, pageable);
+        return postRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
     @Override

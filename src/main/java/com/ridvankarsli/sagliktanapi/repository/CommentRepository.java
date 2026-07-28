@@ -16,7 +16,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // Post detay sayfasında sadece üst-seviye yorumlar sayfalanır, tüm alt
     // yanıtlar (her derinlikten) tek sorguyla ayrıca getirilip bellekte
     // ağaca dönüştürülür - bkz. CommentResponse.buildTree.
-    Page<Comment> findByPostIdAndParentCommentIdIsNull(Long postId, Pageable pageable);
+    // OrderByCreatedAtAsc: alt yanıtlarla aynı kronolojik sırada (en eski
+    // üstte) - ayrıca ORDER BY olmadan sayfalar arası sıra garanti edilmez.
+    Page<Comment> findByPostIdAndParentCommentIdIsNullOrderByCreatedAtAsc(Long postId, Pageable pageable);
 
     List<Comment> findByPostIdAndParentCommentIdIsNotNullOrderByCreatedAtAsc(Long postId);
 
