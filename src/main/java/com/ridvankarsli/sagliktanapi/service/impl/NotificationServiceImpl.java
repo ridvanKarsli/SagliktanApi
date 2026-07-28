@@ -10,12 +10,14 @@ import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.NotificationRepository;
 import com.ridvankarsli.sagliktanapi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
@@ -58,8 +60,24 @@ public class NotificationServiceImpl implements NotificationService {
         // ile eşleştirip /user/{email}/queue/notifications'a yönlendirir.
         // Alıcı o an bağlı değilse mesaj sessizce düşer - bu yüzden ayrıca
         // REST fallback uçları var (bkz. NotificationController).
-        messagingTemplate.convertAndSendToUser(
-                recipient.getEmail(), "/queue/notifications", NotificationResponse.from(notification));
+        //
+        // NOT: convertAndSendToUser mesajı clientOutboundChannel'a (varsayılan
+        // olarak async bir ThreadPoolTaskExecutor) bırakır - gerçek teslimat bu
+        // metod döndükten SONRA, başka bir thread'de gerçekleşir. Yani burada
+        // hata fırlatılmaması teslimatın başarılı olduğu anlamına gelmez;
+        // asıl hata (varsa) o thread'de oluşur ve HTTP yanıtına hiç yansımaz.
+        // Bu yüzden hem gönderim öncesi hem de olası bir senkron hata için log
+        // ekliyoruz - E2E'de "rozet hep 0 kalıyor" tipi sessiz kayıpları teşhis
+        // edebilmek için (bkz. 2026-07-28 E2E #14/#15 teşhis notları).
+        try {
+            log.info("Bildirim WS push: recipient={}, type={}, notificationId={}",
+                    recipient.getEmail(), type, notification.getId());
+            messagingTemplate.convertAndSendToUser(
+                    recipient.getEmail(), "/queue/notifications", NotificationResponse.from(notification));
+        } catch (RuntimeException e) {
+            log.error("Bildirim WS push başarısız: recipient={}, notificationId={}",
+                    recipient.getEmail(), notification.getId(), e);
+        }
     }
 
     @Override
