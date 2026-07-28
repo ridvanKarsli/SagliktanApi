@@ -21,19 +21,23 @@ import lombok.ToString;
 
 import java.time.LocalDateTime;
 
-// Gönderi/yorum şikayeti - moderasyonun ilk adımı. target_type + target_id
-// polimorfik referans (Post ya da Comment), ayrı foreign key yerine
-// uygulama katmanında doğrulanıyor (bkz. ContentReportServiceImpl).
+// Gönderi/yorum reaksiyonu (Faydalı / Faydalı Değil). ContentReport ile aynı
+// polimorfik desen (target_type + target_id, foreign key yerine uygulama
+// katmanında doğrulama - bkz. ReactionServiceImpl.assertTargetExists).
+// Kullanıcı başına hedef başına tek satır - DB'de unique constraint (bkz.
+// V8 migration), aynı kullanıcı reaksiyonunu değiştirebilir (update) ya da
+// kaldırabilir (delete), tekrar aynı değeri veremez diye değil, birden
+// fazla reaksiyon biriktiremesin diye.
 @Entity
-@Table(name = "content_reports")
+@Table(name = "reactions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(of = "id")
-@ToString(exclude = "reporter")
-public class ContentReport {
+@ToString(exclude = "user")
+public class Reaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,31 +45,22 @@ public class ContentReport {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "target_type", nullable = false)
-    private ReportTargetType targetType;
+    private ReactionTargetType targetType;
 
     @Column(name = "target_id", nullable = false)
     private Long targetId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "reporter_id", nullable = false)
-    private User reporter;
-
-    @Column(length = 500)
-    private String reason;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
-    private ReportStatus status = ReportStatus.PENDING;
-
-    // Şikayeti inceleyip durumunu güncelleyen admin - denetim izi (audit trail) için.
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "resolved_by")
-    private User resolvedBy;
-
-    @Column(name = "resolved_at")
-    private LocalDateTime resolvedAt;
+    private ReactionValue value;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", insertable = false, updatable = false)
+    private LocalDateTime updatedAt;
 }

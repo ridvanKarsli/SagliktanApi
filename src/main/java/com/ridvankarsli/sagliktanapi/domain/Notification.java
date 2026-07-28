@@ -21,50 +21,48 @@ import lombok.ToString;
 
 import java.time.LocalDateTime;
 
-// Gönderi/yorum şikayeti - moderasyonun ilk adımı. target_type + target_id
-// polimorfik referans (Post ya da Comment), ayrı foreign key yerine
-// uygulama katmanında doğrulanıyor (bkz. ContentReportServiceImpl).
+// Kalıcı + gerçek zamanlı bildirim. Oluşturulduğunda hem bu tabloya yazılır
+// hem de WebSocket üzerinden anlık push edilir (bkz. NotificationServiceImpl,
+// WebSocketConfig). postId/commentId, bildirime tıklandığında frontend'in
+// nereye yönlendireceğini bilmesi için - şimdilik kapsam sadece yorum/yanıt
+// bildirimleri olduğundan polimorfik bir target yerine doğrudan bu iki alan
+// yeterli.
 @Entity
-@Table(name = "content_reports")
+@Table(name = "notifications")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(of = "id")
-@ToString(exclude = "reporter")
-public class ContentReport {
+@ToString(exclude = {"recipient", "actor"})
+public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "target_type", nullable = false)
-    private ReportTargetType targetType;
-
-    @Column(name = "target_id", nullable = false)
-    private Long targetId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "recipient_id", nullable = false)
+    private User recipient;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "reporter_id", nullable = false)
-    private User reporter;
-
-    @Column(length = 500)
-    private String reason;
+    @JoinColumn(name = "actor_id", nullable = false)
+    private User actor;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    private NotificationType type;
+
+    @Column(name = "post_id", nullable = false)
+    private Long postId;
+
+    @Column(name = "comment_id", nullable = false)
+    private Long commentId;
+
+    @Column(nullable = false)
     @Builder.Default
-    private ReportStatus status = ReportStatus.PENDING;
-
-    // Şikayeti inceleyip durumunu güncelleyen admin - denetim izi (audit trail) için.
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "resolved_by")
-    private User resolvedBy;
-
-    @Column(name = "resolved_at")
-    private LocalDateTime resolvedAt;
+    private boolean read = false;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;

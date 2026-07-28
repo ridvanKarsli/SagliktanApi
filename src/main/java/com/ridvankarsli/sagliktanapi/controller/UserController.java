@@ -1,5 +1,7 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.dto.request.UpdateProfileRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
@@ -9,9 +11,12 @@ import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.service.ReactionService;
+import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 import com.ridvankarsli.sagliktanapi.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -33,6 +39,7 @@ public class UserController {
     private final UserService userService;
     private final DiseaseGroupService diseaseGroupService;
     private final PostService postService;
+    private final ReactionService reactionService;
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
@@ -67,7 +74,10 @@ public class UserController {
             @AuthenticationPrincipal CustomUserDetails principal,
             Pageable pageable
     ) {
-        return PageResponse.from(postService.listByUser(principal.getId(), pageable).map(PostResponse::from));
+        Page<Post> page = postService.listByUser(principal.getId(), pageable);
+        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(
+                ReactionTargetType.POST, page.getContent().stream().map(Post::getId).toList(), principal.getId());
+        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }
 
     // Gelişmiş arama: ad/soyada göre kişi arama (bkz. V7 migration).
@@ -88,7 +98,12 @@ public class UserController {
     }
 
     @GetMapping("/{id}/posts")
-    public PageResponse<PostResponse> userPosts(@PathVariable Long id, Pageable pageable) {
-        return PageResponse.from(postService.listByUser(id, pageable).map(PostResponse::from));
+    public PageResponse<PostResponse> userPosts(
+            @PathVariable Long id, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Post> page = postService.listByUser(id, pageable);
+        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(
+                ReactionTargetType.POST, page.getContent().stream().map(Post::getId).toList(), principal.getId());
+        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }
 }

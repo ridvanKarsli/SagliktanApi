@@ -121,6 +121,13 @@ public class SecurityConfig {
                         // Railway health check bu endpoint'e authsuz istek atıyor;
                         // başka hiçbir actuator endpoint'i public değil.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // WebSocket (STOMP) el sıkışma isteği: tarayıcının native
+                        // WebSocket API'si Authorization header'ı taşıyamıyor, bu
+                        // yüzden gerçek JWT doğrulaması burada değil, ilk STOMP
+                        // CONNECT frame'inde yapılıyor (bkz.
+                        // JwtHandshakeChannelInterceptor). Bu satır sadece ham HTTP
+                        // upgrade isteğinin buraya kadar ulaşmasına izin verir.
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // Filter chain seviyesindeki 401/403'ler de GlobalExceptionHandler'daki

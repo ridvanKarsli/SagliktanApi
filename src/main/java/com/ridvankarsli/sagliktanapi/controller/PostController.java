@@ -1,8 +1,11 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
 import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.PostRequest;
+import com.ridvankarsli.sagliktanapi.dto.request.ReactionRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.MessageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
@@ -10,8 +13,11 @@ import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.ContentReportService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.service.ReactionService;
+import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,12 +31,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 public class PostController {
 
     private final PostService postService;
     private final ContentReportService contentReportService;
+    private final ReactionService reactionService;
 
     @PostMapping("/api/sub-groups/{subGroupId}/posts")
     @ResponseStatus(HttpStatus.CREATED)
@@ -45,19 +55,28 @@ public class PostController {
     }
 
     @GetMapping("/api/sub-groups/{subGroupId}/posts")
-    public PageResponse<PostResponse> listBySubGroup(@PathVariable Long subGroupId, Pageable pageable) {
-        return PageResponse.from(postService.listBySubGroup(subGroupId, pageable).map(PostResponse::from));
+    public PageResponse<PostResponse> listBySubGroup(
+            @PathVariable Long subGroupId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Post> page = postService.listBySubGroup(subGroupId, pageable);
+        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
+        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }
 
     // Rapor 4.5: PostgreSQL Full-Text Search
     @GetMapping("/api/posts/search")
-    public PageResponse<PostResponse> search(@RequestParam String q, Pageable pageable) {
-        return PageResponse.from(postService.search(q, pageable).map(PostResponse::from));
+    public PageResponse<PostResponse> search(
+            @RequestParam String q, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Post> page = postService.search(q, pageable);
+        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
+        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }
 
     @GetMapping("/api/posts/{id}")
-    public PostResponse getById(@PathVariable Long id) {
-        return PostResponse.from(postService.getById(id));
+    public PostResponse getById(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        Post post = postService.getById(id);
+        return PostResponse.from(post, reactionService.getSummary(ReactionTargetType.POST, id, principal.getId()));
     }
 
     @PutMapping("/api/posts/{id}")
@@ -67,9 +86,8 @@ public class PostController {
             @Valid @RequestBody PostRequest request
     ) {
         boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
-        return PostResponse.from(
-                postService.update(id, principal.getId(), isAdmin, request.title(), request.content())
-        );
+        Post post = postService.update(id, principal.getId(), isAdmin, request.title(), request.content());
+        return PostResponse.from(post, reactionService.getSummary(ReactionTargetType.POST, id, principal.getId()));
     }
 
     @DeleteMapping("/api/posts/{id}")
@@ -87,5 +105,27 @@ public class PostController {
         String reason = request != null ? request.reason() : null;
         contentReportService.report(ReportTargetType.POST, id, principal.getId(), reason);
         return new MessageResponse("Şikayetiniz alındı, teşekkür ederiz");
+    }
+
+    // Faydalı / Faydalı Değil reaksiyonu ver ya da (zaten varsa) değiştir - upsert.
+    @PutMapping("/api/posts/{id}/reactions")
+    public ReactionSummary react(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @Valid @RequestBody ReactionRequest request
+    ) {
+        reactionService.setReaction(ReactionTargetType.POST, id, principal.getId(), request.value());
+        return reactionService.getSummary(ReactionTargetType.POST, id, principal.getId());
+    }
+
+    @DeleteMapping("/api/posts/{id}/reactions")
+    public ReactionSummary removeReaction(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        reactionService.removeReaction(ReactionTargetType.POST, id, principal.getId());
+        return reactionService.getSummary(ReactionTargetType.POST, id, principal.getId());
+    }
+
+    private Map<Long, ReactionSummary> reactionSummaries(List<Post> posts, CustomUserDetails principal) {
+        List<Long> ids = posts.stream().map(Post::getId).toList();
+        return reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
     }
 }

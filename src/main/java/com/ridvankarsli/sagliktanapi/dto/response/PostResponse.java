@@ -1,6 +1,8 @@
 package com.ridvankarsli.sagliktanapi.dto.response;
 
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.ReactionValue;
+import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 
 import java.time.LocalDateTime;
 
@@ -17,10 +19,20 @@ public record PostResponse(
         String authorName,
         String title,
         String content,
+        long helpfulCount,
+        long notHelpfulCount,
+        // null ise istek sahibi bu posta hiç reaksiyon vermemiş.
+        ReactionValue myReaction,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    // Reaksiyon bilgisi olmayan yerler için (ör. yeni oluşturulan post -
+    // henüz kimse reaksiyon veremedi) kısayol.
     public static PostResponse from(Post post) {
+        return from(post, ReactionSummary.empty());
+    }
+
+    public static PostResponse from(Post post, ReactionSummary reactions) {
         return new PostResponse(
                 post.getId(),
                 post.getSubGroup().getId(),
@@ -29,6 +41,9 @@ public record PostResponse(
                 post.getUser().getFirstName() + " " + post.getUser().getLastName(),
                 post.getTitle(),
                 post.getContent(),
+                reactions.helpfulCount(),
+                reactions.notHelpfulCount(),
+                reactions.myReaction(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );
