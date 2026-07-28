@@ -34,7 +34,7 @@ public class JwtService {
     }
 
     public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(Map.of(), userDetails, accessTokenExpirationMs);
+        return buildToken(Map.of("type", "access"), userDetails, accessTokenExpirationMs);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
@@ -61,6 +61,12 @@ public class JwtService {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    // "access" ya da "refresh" - token tipi karışıklığını önlemek için
+    // (bkz. JwtAuthenticationFilter ve AuthServiceImpl.refresh() kullanımı).
+    public String extractTokenType(String token) {
+        return extractClaim(token, claims -> claims.get("type", String.class));
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> resolver) {

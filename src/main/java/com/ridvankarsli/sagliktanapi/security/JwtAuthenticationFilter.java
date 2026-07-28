@@ -49,7 +49,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                if (jwtService.isTokenValid(token, userDetails)) {
+                // KRİTİK: refresh token'lar sadece /api/auth/refresh için üretiliyor;
+                // "type" claim'i kontrol edilmezse daha uzun ömürlü bir refresh token
+                // sızarsa saldırgan onu doğrudan normal API isteklerinde bearer token
+                // olarak kullanabilirdi (access token gibi). Sadece "access" tipindeki
+                // token'lar burada kimlik doğrulaması için kabul edilir.
+                if ("access".equals(jwtService.extractTokenType(token)) && jwtService.isTokenValid(token, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

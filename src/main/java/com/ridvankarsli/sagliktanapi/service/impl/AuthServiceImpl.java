@@ -119,7 +119,15 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void verifyEmail(String email, String code) {
-        User user = getUserOrThrow(email);
+        // NOT: getUserOrThrow yerine bilerek findByEmail kullanıyoruz -
+        // e-posta kayıtlı değilse de "Doğrulama kodu hatalı" ile AYNI
+        // mesaj/status dönmeli. Aksi halde bu uç, kayıtlı e-postaları
+        // 404 ("Kullanıcı bulunamadı") ile açığa çıkaran bir email
+        // enumeration kanalı olur (bkz. login/resetPassword'daki aynı düzeltme).
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            throw new BadRequestException("Doğrulama kodu hatalı");
+        }
 
         if (user.isEmailVerified()) {
             return; // idempotent: zaten doğrulanmışsa sessizce çık
@@ -142,9 +150,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthTokens login(String email, String rawPassword) {
-        User user = getUserOrThrow(email);
+        // NOT: getUserOrThrow yerine findByEmail - e-posta kayıtlı değilse
+        // de yanlış şifreyle AYNI 401/mesajı dönmeli, aksi halde bu uç
+        // (login) kayıtlı e-postaları 404 ile açığa çıkaran bir email
+        // enumeration kanalı olur. forgot-password zaten bu prensiple
+        // yazılmıştı (bkz. requestPasswordReset) - burada da uyguluyoruz.
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+        if (user == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
             throw new UnauthorizedException("E-posta veya şifre hatalı");
         }
 
@@ -174,7 +187,11 @@ public class AuthServiceImpl implements AuthService {
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-        if (!jwtService.isTokenValid(refreshToken, userDetails)) {
+        // KRİTİK: "type" claim'i kontrol edilmezse bir access token da bu uca
+        // refresh token gibi verilebilir - bu da kısa ömürlü olması gereken
+        // access token'ın süresiz şekilde yeni token çifti üretmek için
+        // kullanılmasına (ömrünü fiilen sınırsız hale getirmesine) yol açardı.
+        if (!"refresh".equals(jwtService.extractTokenType(refreshToken)) || !jwtService.isTokenValid(refreshToken, userDetails)) {
             throw new UnauthorizedException("Geçersiz veya süresi dolmuş refresh token");
         }
 
@@ -216,9 +233,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void resetPassword(String email, String code, String newPassword) {
-        User user = getUserOrThrow(email);
+        // NOT: getUserOrThrow yerine findByEmail - aynı email enumeration
+        // gerekçesiyle (bkz. login/verifyEmail'deki not).
+        User user = userRepository.findByEmail(email).orElse(null);
 
-        if (user.getResetCode() == null || !user.getResetCode().equals(code)) {
+        if (user == null || user.getResetCode() == null || !user.getResetCode().equals(code)) {
             throw new BadRequestException("Sıfırlama kodu hatalı");
         }
 
@@ -230,11 +249,6 @@ public class AuthServiceImpl implements AuthService {
         user.setResetCode(null);
         user.setResetCodeExpiresAt(null);
         userRepository.save(user);
-    }
-
-    private User getUserOrThrow(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
     }
 
     private String generateCode() {
