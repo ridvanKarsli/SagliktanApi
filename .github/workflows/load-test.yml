@@ -1,0 +1,126 @@
+name: Load Test (Locust)
+
+# Bilinçli olarak sadece elle tetikleniyor (workflow_dispatch) - her push/PR'da
+# değil. Sebep: bu bir doğruluk testi değil, kapasite/performans testi - hızlı
+# geri bildirim gerektiren normal CI akışını (ci.yml) yavaşlatmamalı, ve
+# sonuçları (özellikle p95 gecikme, RPS) gözle değerlendirmek gerekiyor.
+# Actions sekmesinden "Run workflow" ile, istersen kullanıcı sayısı/süreyi
+# değiştirerek çalıştırılır.
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Eşzamanlı simüle edilen kullanıcı sayısı'
+        required: false
+        default: '20'
+      spawn_rate:
+        description: 'Saniyede eklenecek kullanıcı sayısı'
+        required: false
+        default: '2'
+      run_time:
+        description: 'Test süresi (örn. 2m, 5m, 10m)'
+        required: false
+        default: '2m'
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # ci.yml ile aynı Postgres kurulumu - gerçek bir veritabanına karşı
+    # ölçüm yapmak istiyoruz, H2/mock değil.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sagliktan
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Backend'i derle (testsiz - testler zaten ci.yml'de çalışıyor)
+        run: ./mvnw -B -DskipTests clean package
+
+      - name: Backend'i başlat
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sagliktan
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres
+          APP_JWT_SECRET: Y2ktb25seS10ZXN0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q9
+          EMAIL_SENDER: ci-test@example.com
+          EMAIL_PASSWORD: ci-test-password
+          APP_BASE_URL: http://localhost:8080
+          # SADECE bu workflow'da - bkz. load-test/locustfile.py başındaki
+          # açıklama. Prod/staging'de asla tanımlanmaz.
+          APP_TESTING_AUTO_VERIFY_EMAIL: "true"
+          APP_TESTING_RATE_LIMIT_MULTIPLIER: "1000"
+        run: |
+          nohup java -jar target/*.jar > backend.log 2>&1 &
+          echo "Backend başlatıldı, health check bekleniyor..."
+
+      - name: Backend health check bekle
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/actuator/health; then
+              echo "Backend ayakta."
+              exit 0
+            fi
+            echo "Bekleniyor... ($i/30)"
+            sleep 2
+          done
+          echo "Backend zamanında ayağa kalkmadı, log:"
+          cat backend.log
+          exit 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Locust'u kur
+        run: pip install -r load-test/requirements.txt
+
+      - name: Yük testini çalıştır
+        run: |
+          locust -f load-test/locustfile.py --host http://localhost:8080 \
+            --headless \
+            -u ${{ inputs.users }} \
+            -r ${{ inputs.spawn_rate }} \
+            -t ${{ inputs.run_time }} \
+            --html load-test-report.html \
+            --csv load-test-stats
+
+      - name: Yük testi raporunu yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: |
+            load-test-report.html
+            load-test-stats_*.csv
+          retention-days: 30
+
+      - name: Backend log'unu yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: backend.log
+          retention-days: 7

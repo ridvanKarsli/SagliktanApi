@@ -1,6 +1,11 @@
 HELP.md
 target/
 
+### Yük testi çıktıları (yerelde çalıştırınca üretilir, repoya girmesin) ###
+load-test-report.html
+load-test-stats_*.csv
+load-test/__pycache__/
+
 ### Secrets (gercek degerler repoya girmesin) ###
 src/main/resources/application-secrets.properties
 
