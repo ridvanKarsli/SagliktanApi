@@ -1,5 +1,6 @@
 package com.ridvankarsli.sagliktanapi.dto.request;
 
+import com.ridvankarsli.sagliktanapi.validation.ValidName;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -16,11 +17,11 @@ public record RegisterRequest(
         String password,
 
         @NotBlank(message = "Ad zorunludur")
-        @Size(max = 100)
+        @ValidName
         String firstName,
 
         @NotBlank(message = "Soyad zorunludur")
-        @Size(max = 100)
+        @ValidName
         String lastName,
 
         // KVKK aydınlatma metni + açık rıza onayı olmadan kayıt tamamlanamaz.
