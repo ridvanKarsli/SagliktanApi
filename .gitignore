@@ -9,10 +9,6 @@ load-test/__pycache__/
 ### Secrets (gercek degerler repoya girmesin) ###
 src/main/resources/application-secrets.properties
 
-### Geçici: sadece yerelde tasarım önizlemesi için sahte veri migration'ı -
-### commit/push edilirse prod DB'ye de uygulanır, bilerek asla git'e girmesin ###
-src/main/resources/db/migration/V13__seed_bulk_test_data.sql
-
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
