@@ -21,6 +21,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+    // Profil sayfasındaki "Gönderi" istatistiği - bkz. UserController.
+    long countByUserId(Long userId);
+
     // Rapor 4.5 + arama iyileştirmesi (V11/V12): prefix tsquery string'i
     // artık Java'da (bkz. SearchQueryUtil) inşa edilip hazır olarak
     // veriliyor - Postgres tarafında sadece standart to_tsquery/word_similarity

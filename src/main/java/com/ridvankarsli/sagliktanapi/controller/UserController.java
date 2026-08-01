@@ -43,7 +43,11 @@ public class UserController {
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
-        return UserResponse.from(userService.getById(principal.getId()));
+        UserService.ProfileStats stats = userService.getProfileStats(principal.getId());
+        return UserResponse.from(
+                userService.getById(principal.getId()),
+                stats.postCount(), stats.commentCount(), stats.likesReceived(), stats.dislikesReceived()
+        );
     }
 
     @PutMapping("/me")
@@ -94,7 +98,11 @@ public class UserController {
     // eşleştirdiği için bu route'larla çakışmaz.
     @GetMapping("/{id}")
     public UserSearchResponse getPublicProfile(@PathVariable Long id) {
-        return UserSearchResponse.from(userService.getById(id));
+        UserService.ProfileStats stats = userService.getProfileStats(id);
+        return UserSearchResponse.from(
+                userService.getById(id),
+                stats.postCount(), stats.commentCount(), stats.likesReceived(), stats.dislikesReceived()
+        );
     }
 
     @GetMapping("/{id}/posts")

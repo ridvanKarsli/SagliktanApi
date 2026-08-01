@@ -36,4 +36,23 @@ public interface ReactionRepository extends JpaRepository<Reaction, Long> {
         ReactionValue getValue();
         long getCount();
     }
+
+    // Profil sayfasındaki "Beğeni"/"Beğenmeme" istatistiği: bir kullanıcının
+    // TÜM postlarına + yorumlarına gelen reaksiyonların toplamı. Reaction
+    // polimorfik olduğu için (target_type/target_id, Post/Comment'e FK yok)
+    // JPQL join mümkün değil - native sorguda iki alt sorguyla (posts,
+    // comments) hedef id kümesi çıkarılıp reactions tablosuyla eşleştiriliyor.
+    // Silinmiş yorumlar hariç tutulur (Post'ta soft-delete yok).
+    @Query(
+            value = "SELECT r.value AS value, COUNT(*) AS count FROM reactions r WHERE " +
+                    "(r.target_type = 'POST' AND r.target_id IN (SELECT id FROM posts WHERE user_id = :userId)) " +
+                    "OR (r.target_type = 'COMMENT' AND r.target_id IN (SELECT id FROM comments WHERE user_id = :userId AND deleted = false)) " +
+                    "GROUP BY r.value",
+            nativeQuery = true)
+    List<ReceivedReactionCountRow> countReceivedByUserId(@Param("userId") Long userId);
+
+    interface ReceivedReactionCountRow {
+        String getValue();
+        long getCount();
+    }
 }

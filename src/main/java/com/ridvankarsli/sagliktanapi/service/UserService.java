@@ -14,4 +14,11 @@ public interface UserService {
 
     // Gelişmiş arama: ad/soyada göre kişi arama.
     Page<User> search(String query, Pageable pageable);
+
+    // Profil sayfasındaki istatistik satırı (Gönderi/Yorum/Beğeni/Beğenmeme) -
+    // bkz. UserController#getProfile / getPublicProfile.
+    ProfileStats getProfileStats(Long userId);
+
+    record ProfileStats(long postCount, long commentCount, long likesReceived, long dislikesReceived) {
+    }
 }

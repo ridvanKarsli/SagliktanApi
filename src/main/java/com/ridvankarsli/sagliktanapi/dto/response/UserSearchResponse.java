@@ -8,14 +8,27 @@ public record UserSearchResponse(
         Long id,
         String firstName,
         String lastName,
-        String bio
+        String bio,
+        long postCount,
+        long commentCount,
+        long likesReceived,
+        long dislikesReceived
 ) {
     public static UserSearchResponse from(User user) {
+        return from(user, 0, 0, 0, 0);
+    }
+
+    // Herkese açık profilde gösterilen istatistik satırı için - bkz. UserController#getPublicProfile.
+    public static UserSearchResponse from(User user, long postCount, long commentCount, long likesReceived, long dislikesReceived) {
         return new UserSearchResponse(
                 user.getId(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getBio()
+                user.getBio(),
+                postCount,
+                commentCount,
+                likesReceived,
+                dislikesReceived
         );
     }
 }
