@@ -20,9 +20,15 @@ maddelerden farklı olarak "iyi olur" değil, "olmazsa kırık" seviyesinde.
 
 ## 1. Gözlemlenebilirlik (en yüksek öncelik)
 
-- [ ] Hata izleme aracı ekle (Sentry ücretsiz tier — hem backend hem frontend)
-- [ ] Basit uptime/alarm sistemi kur (ör. UptimeRobot, ücretsiz) — backend
-      uykuya dalarsa/çökerse haberin olsun
+- [x] Hata izleme aracı ekle (Sentry ücretsiz tier — hem backend hem frontend).
+      Tamamlandı (2026-08-03): sentry-spring-boot-4-starter + @sentry/react
+      eklendi, canlıda test hatasıyla doğrulandı. send-default-pii/userInfo
+      bilerek kapalı (KVKK incelemesi tamamlanana kadar).
+- [x] Basit uptime/alarm sistemi kur — Better Stack (UptimeRobot yerine;
+      UptimeRobot'un ücretsiz planı 2024 sonundan beri ticari kullanım
+      yasaklıyor). Tamamlandı (2026-08-03): sagliktan.com ve
+      api.sagliktan.com/actuator/health 3 dakikada bir kontrol ediliyor,
+      mail bildirimi açık.
 - [ ] (Opsiyonel) Yapılandırılmış log + basit log arama — CI'da backend.log'a
       ulaşmanın bu oturumda ne kadar zor olduğunu gördük, production'da bu
       hiç sürdürülebilir değil
@@ -32,7 +38,8 @@ maddelerden farklı olarak "iyi olur" değil, "olmazsa kırık" seviyesinde.
 - [ ] Gmail SMTP'den transactional email servisine geç (Resend / Brevo /
       Postmark) — Gmail'in günlük gönderim limiti ve otomatik gönderimde
       hesap askıya alma riski var, kayıt/şifre sıfırlama akışının omurgası
-      bu maile bağlı
+      bu maile bağlı. **Bilinçli olarak erteledi (2026-08-03): "gmail yeter,
+      onu yapmayalım sonra"** — şimdilik Gmail SMTP ile devam ediliyor.
 - [ ] Yeni servisle kayıt doğrulama + şifre sıfırlama akışını uçtan uca test et
 
 ## 3. Barındırma kapasitesi
@@ -67,12 +74,6 @@ maddelerden farklı olarak "iyi olur" değil, "olmazsa kırık" seviyesinde.
       altında ne kırılıyor gör, barındırma limitlerini gerçek trafikle sına
 - [ ] İlk haftalarda topluluk sessiz kalmasın diye 1-2 grupta siz/moderatör
       ilk içeriği başlatın
-
-## Ayrıca: bitmemiş iş (blocker değil, ama unutulmasın)
-
-- [ ] Yorum ağacını sınırsız yükleme yerine talep üzerine sayfalı hale
-      getirme fix'i (backend 5 dosya + frontend 2 dosya) hazır ama henüz
-      commit/push edilmedi.
 
 ## Sıra Önerisi
 
