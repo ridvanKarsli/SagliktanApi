@@ -32,10 +32,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -58,27 +56,47 @@ public class CommentController {
         return CommentResponse.from(comment);
     }
 
-    // Sadece üst-seviye yorumlar sayfalanır. Tüm alt yanıtlar (her
-    // derinlikten) tek sorguyla çekilip bellekte ağaca dönüştürülerek
-    // gömülü olarak döndürülür - bkz. CommentResponse.buildTree.
+    // Sadece üst-seviye yorumlar sayfalanır. Her yorumun alt yanıtları
+    // gömülü gelmez; sadece DOĞRUDAN yanıt sayısı (replyCount) döner -
+    // kullanıcı bir yorumun yanıtlarını görmek isterse ayrıca
+    // GET /api/comments/{commentId}/replies çağrılır (thread-drill).
     @GetMapping("/api/posts/{postId}/comments")
     public PageResponse<CommentResponse> listByPost(
             @PathVariable Long postId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Comment> topLevelPage = commentService.listByPost(postId, pageable);
-        List<Comment> descendants = commentService.listDescendants(postId);
-        Map<Long, List<Comment>> descendantsByParentId = descendants.stream()
-                .collect(Collectors.groupingBy(c -> c.getParentComment().getId()));
-
-        List<Long> allIds = new ArrayList<>();
-        topLevelPage.forEach(c -> allIds.add(c.getId()));
-        descendants.forEach(c -> allIds.add(c.getId()));
+        List<Long> ids = topLevelPage.getContent().stream().map(Comment::getId).toList();
         Map<Long, ReactionSummary> reactions =
-                reactionService.getSummaries(ReactionTargetType.COMMENT, allIds, principal.getId());
+                reactionService.getSummaries(ReactionTargetType.COMMENT, ids, principal.getId());
+        Map<Long, Long> replyCounts = commentService.countReplies(ids);
 
-        return PageResponse.from(
-                topLevelPage.map(comment -> CommentResponse.buildWithChildren(comment, descendantsByParentId, reactions))
-        );
+        return PageResponse.from(topLevelPage.map(comment -> CommentResponse.from(
+                comment,
+                reactions.getOrDefault(comment.getId(), ReactionSummary.empty()),
+                replyCounts.getOrDefault(comment.getId(), 0L)
+        )));
+    }
+
+    // Bir yorumun DOĞRUDAN yanıtlarını sayfalı döner (thread-drill: X/Twitter
+    // tarzı, kullanıcı bir yoruma tıklayınca sadece o yorumun bir alt
+    // seviyesi açılır, daha derin yanıtlar kullanıcı ilerledikçe ayrı
+    // çağrılarla gelir). Dönen yanıtların da kendi replyCount'u vardır,
+    // böylece thread-drill istenildiği kadar derine inebilir.
+    @GetMapping("/api/comments/{commentId}/replies")
+    public PageResponse<CommentResponse> listReplies(
+            @PathVariable Long commentId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Comment> page = commentService.listReplies(commentId, pageable);
+        List<Long> ids = page.getContent().stream().map(Comment::getId).toList();
+        Map<Long, ReactionSummary> reactions =
+                reactionService.getSummaries(ReactionTargetType.COMMENT, ids, principal.getId());
+        Map<Long, Long> replyCounts = commentService.countReplies(ids);
+
+        return PageResponse.from(page.map(comment -> CommentResponse.from(
+                comment,
+                reactions.getOrDefault(comment.getId(), ReactionSummary.empty()),
+                replyCounts.getOrDefault(comment.getId(), 0L)
+        )));
     }
 
     // Gelişmiş arama: yorum içeriğinde tam metin arama (bkz. V7 migration).

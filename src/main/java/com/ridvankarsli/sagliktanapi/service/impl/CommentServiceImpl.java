@@ -18,7 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -57,8 +59,23 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<Comment> listDescendants(Long postId) {
-        return commentRepository.findByPostIdAndParentCommentIdIsNotNullOrderByCreatedAtAsc(postId);
+    public Page<Comment> listReplies(Long parentCommentId, Pageable pageable) {
+        return commentRepository.findByParentCommentIdOrderByCreatedAtAsc(parentCommentId, pageable);
+    }
+
+    @Override
+    public Map<Long, Long> countReplies(Collection<Long> parentIds) {
+        if (parentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Long id : parentIds) {
+            counts.put(id, 0L);
+        }
+        for (CommentRepository.ReplyCountRow row : commentRepository.countRepliesGrouped(parentIds)) {
+            counts.put(row.getParentId(), row.getCount());
+        }
+        return counts;
     }
 
     @Override

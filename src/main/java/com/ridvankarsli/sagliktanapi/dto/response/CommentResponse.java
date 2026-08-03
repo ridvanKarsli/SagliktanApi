@@ -5,9 +5,6 @@ import com.ridvankarsli.sagliktanapi.domain.ReactionValue;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public record CommentResponse(
         Long id,
@@ -22,49 +19,27 @@ public record CommentResponse(
         long notHelpfulCount,
         ReactionValue myReaction,
         LocalDateTime createdAt,
-        // Yanıtın yanıtları da dahil, sınırsız derinlikte gömülü olarak gelir
-        // - bkz. buildTree.
-        List<CommentResponse> replies
+        // Bu yorumun DOĞRUDAN yanıt sayısı (alt yanıtların yanıtları dahil
+        // değil). Eskiden burada tüm alt ağaç (sınırsız derinlik) gömülü
+        // olarak geliyordu; artık talep üzerine GET /api/comments/{id}/replies
+        // ile sayfalı çekiliyor (bkz. CommentService.listReplies) - bu sayede
+        // çok yanıtlı bir yorumun tüm ağacını tek istekte belleğe/ağa çekme
+        // sorunu ortadan kalkıyor.
+        long replyCount
 ) {
     private static final String DELETED_PLACEHOLDER = "[Bu yorum silindi]";
 
-    // Reaksiyon bilgisi olmayan yerler için (ör. yeni oluşturulan yorum) kısayol.
+    // Reaksiyon/yanıt sayısı bilgisi olmayan yerler için (ör. yeni
+    // oluşturulan yorum - henüz hiç yanıtı yok) kısayol.
     public static CommentResponse from(Comment comment) {
-        return build(comment, List.of(), ReactionSummary.empty());
+        return from(comment, ReactionSummary.empty(), 0L);
     }
 
     public static CommentResponse from(Comment comment, ReactionSummary reactions) {
-        return build(comment, List.of(), reactions);
+        return from(comment, reactions, 0L);
     }
 
-    // Bir postun üst-seviye yorumlarını, tüm alt yanıtlarıyla (her
-    // derinlikten) birlikte tek seferde ağaca dönüştürür. allDescendants
-    // postun tüm alt-seviye yorumlarını (parentCommentId dolu olanları)
-    // flat halde içermeli - bkz. CommentService.listDescendants.
-    // reactionsByCommentId: postun tüm yorumları için tek seferde toplu
-    // çekilmiş reaksiyon özetleri (bkz. ReactionService.getSummaries) - her
-    // yorum düğümü için ayrı sorgu atılmasını önler.
-    public static List<CommentResponse> buildTree(
-            List<Comment> topLevelComments, List<Comment> allDescendants, Map<Long, ReactionSummary> reactionsByCommentId
-    ) {
-        Map<Long, List<Comment>> byParentId = allDescendants.stream()
-                .collect(Collectors.groupingBy(c -> c.getParentComment().getId()));
-        return topLevelComments.stream()
-                .map(comment -> buildWithChildren(comment, byParentId, reactionsByCommentId))
-                .toList();
-    }
-
-    public static CommentResponse buildWithChildren(
-            Comment comment, Map<Long, List<Comment>> byParentId, Map<Long, ReactionSummary> reactionsByCommentId
-    ) {
-        List<Comment> children = byParentId.getOrDefault(comment.getId(), List.of());
-        List<CommentResponse> childResponses = children.stream()
-                .map(child -> buildWithChildren(child, byParentId, reactionsByCommentId))
-                .toList();
-        return build(comment, childResponses, reactionsByCommentId.getOrDefault(comment.getId(), ReactionSummary.empty()));
-    }
-
-    private static CommentResponse build(Comment comment, List<CommentResponse> replies, ReactionSummary reactions) {
+    public static CommentResponse from(Comment comment, ReactionSummary reactions, long replyCount) {
         return new CommentResponse(
                 comment.getId(),
                 comment.getPost().getId(),
@@ -77,7 +52,7 @@ public record CommentResponse(
                 reactions.notHelpfulCount(),
                 reactions.myReaction(),
                 comment.getCreatedAt(),
-                replies
+                replyCount
         );
     }
 }
