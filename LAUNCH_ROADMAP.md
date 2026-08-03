@@ -6,6 +6,18 @@ rotasyonu, grup üyelik kontrolü, rate limiting, CORS, KVKK onayı, içerik see
 Bu doküman bir sonraki aşama — kod doğruluğundan çok, gerçek kullanıcı
 trafiğini kaldırma ve sorunları görebilme hazırlığı.
 
+## 0. Asıl blocker'lar (site canlı ve doğru çalışsın diye ŞART)
+
+Bu ikisi, 2026-08 tarihli denetimde bulundu, aşağıdaki 1-6 numaralı
+maddelerden farklı olarak "iyi olur" değil, "olmazsa kırık" seviyesinde.
+
+- [x] **Frontend'i Vercel'e deploy et.** Teyit edildi (2026-08-03): proje
+      Vercel'de, GitHub'a bağlı, `sagliktan.com` canlı ve doğru içeriği
+      serviyor.
+- [x] **`app.base-url` prod'da doğru domain'i göstersin.** Railway'de
+      `APP_BASE_URL=https://api.sagliktan.com` env değişkeni eklendi,
+      deploy edildi, servis "Active" (2026-08-03).
+
 ## 1. Gözlemlenebilirlik (en yüksek öncelik)
 
 - [ ] Hata izleme aracı ekle (Sentry ücretsiz tier — hem backend hem frontend)
@@ -56,13 +68,21 @@ trafiğini kaldırma ve sorunları görebilme hazırlığı.
 - [ ] İlk haftalarda topluluk sessiz kalmasın diye 1-2 grupta siz/moderatör
       ilk içeriği başlatın
 
+## Ayrıca: bitmemiş iş (blocker değil, ama unutulmasın)
+
+- [ ] Yorum ağacını sınırsız yükleme yerine talep üzerine sayfalı hale
+      getirme fix'i (backend 5 dosya + frontend 2 dosya) hazır ama henüz
+      commit/push edilmedi.
+
 ## Sıra Önerisi
 
-1. Gözlemlenebilirlik (Sentry + uptime) — bundan sonraki her adımda göz
+1. `app.base-url` teyidi/düzeltmesi (5 dk, Railway panelinden)
+2. Frontend'i Vercel'e deploy et
+3. Gözlemlenebilirlik (Sentry + uptime) — bundan sonraki her adımda göz
    olarak lazım
-2. E-posta altyapısı — kayıt akışı buna bağlı, en kırılgan nokta
-3. Barındırma kapasitesi teyidi
-4. KVKK hukuki inceleme (paralel yürütülebilir, avukat cevabı beklenirken
+4. E-posta altyapısı — kayıt akışı buna bağlı, en kırılgan nokta
+5. Barındırma kapasitesi teyidi
+6. KVKK hukuki inceleme (paralel yürütülebilir, avukat cevabı beklenirken
    diğer adımlara devam edilebilir)
-5. Soft launch
-6. Küçük cilalar
+7. Soft launch
+8. Küçük cilalar
