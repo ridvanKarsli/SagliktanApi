@@ -1,6 +1,7 @@
 package com.ridvankarsli.sagliktanapi.exception;
 
 import com.ridvankarsli.sagliktanapi.dto.response.ErrorResponse;
+import io.sentry.Sentry;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -85,9 +86,13 @@ public class GlobalExceptionHandler {
     }
 
     // Beklenmeyen her şey için son çare; detay loglanır, dışarıya sızdırılmaz.
+    // Sentry'ye SADECE burası (gerçek 500'ler) rapor ediliyor - yukarıdaki
+    // 400/403/404 gibi olağan iş kuralı hataları bilerek raporlanmıyor,
+    // aksi halde Sentry kotası anlamsız "hata" gürültüsüyle dolar.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
         log.error("Beklenmeyen hata", ex);
+        Sentry.captureException(ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Beklenmeyen bir hata oluştu");
     }
 
