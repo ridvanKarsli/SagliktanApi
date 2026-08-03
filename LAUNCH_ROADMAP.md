@@ -44,9 +44,13 @@ maddelerden farklı olarak "iyi olur" değil, "olmazsa kırık" seviyesinde.
 
 ## 3. Barındırma kapasitesi
 
-- [ ] Render/Vercel planlarını gözden geçir — backend'in "always-on" bir
-      planda olduğunu teyit et (ücretsiz tier 15 dk hareketsizlik sonrası
-      uyur, ilk kullanıcı isteğinde 30-60sn beyaz ekran riski)
+- [x] Backend'in (Railway) "always-on" olduğunu teyit et. Tamamlandı
+      (2026-08-03): **düzeltme** - önceki not yanlıştı, Railway'de
+      Render/Heroku'daki gibi hareketsizlikte uyuma yok. Hesap "Hobby Plan"
+      (usage-based, deneme değil), 8GB RAM/8vCPU/100GB disk'e kadar kapasite,
+      ödeme yöntemi tanımlı. Bu ayki kullanım $1.44/$5.00 dahil kullanım -
+      ay sonunda $5'i biraz aşması muhtemel ama kart tanımlı olduğu için bu
+      sadece küçük bir ek ücret demek, kesinti riski yok.
 - [ ] Hikari pool (şu an max 10) ve task executor (2-5 thread) ayarlarının
       beklenen ilk kullanıcı sayısına yeteceğini teyit et
 
