@@ -2,6 +2,7 @@ package com.ridvankarsli.sagliktanapi.config;
 
 import com.ridvankarsli.sagliktanapi.security.JwtHandshakeChannelInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -9,12 +10,14 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 // Gerçek zamanlı bildirimler için STOMP over WebSocket. JWT doğrulaması
 // burada değil, JwtHandshakeChannelInterceptor'da (CONNECT frame'inde)
-// yapılıyor - bkz. o sınıf. CORS allowlist SecurityConfig ile aynı
-// origin'ler (tek yerden yönetmek için oraya taşınabilir ama WebSocket
-// origin kontrolü Spring CORS filter'ından tamamen ayrı bir mekanizma
-// olduğu için burada da elle tanımlanması gerekiyor).
+// yapılıyor - bkz. o sınıf. CORS allowlist SecurityConfig ile aynı kaynaktan
+// (app.cors.allowed-origins / ALLOWED_ORIGINS env) okunuyor - tek yerden
+// yönetmek için, ama WebSocket origin kontrolü Spring CORS filter'ından
+// tamamen ayrı bir mekanizma olduğu için burada ayrıca enjekte ediliyor.
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
@@ -22,14 +25,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtHandshakeChannelInterceptor jwtHandshakeChannelInterceptor;
 
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOriginsRaw;
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws")
-                .setAllowedOrigins(
-                        "https://sagliktan.com",
-                        "https://www.sagliktan.com",
-                        "http://localhost:3000"
-                );
+        String[] origins = Arrays.stream(allowedOriginsRaw.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toArray(String[]::new);
+        registry.addEndpoint("/ws").setAllowedOrigins(origins);
     }
 
     @Override
