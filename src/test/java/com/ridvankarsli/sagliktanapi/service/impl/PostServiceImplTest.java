@@ -9,6 +9,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +47,8 @@ class PostServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private UserDiseaseGroupRepository userDiseaseGroupRepository;
+    @Mock
+    private PostAttachmentService postAttachmentService;
 
     @InjectMocks
     private PostServiceImpl postService;
@@ -71,7 +75,7 @@ class PostServiceImplTest {
                 .thenReturn(false);
 
         assertThrows(ForbiddenException.class,
-                () -> postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik"));
+                () -> postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik", null));
 
         verify(postRepository, never()).save(any());
     }
@@ -84,10 +88,27 @@ class PostServiceImplTest {
                 .thenReturn(true);
         when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Post result = postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik");
+        Post result = postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik", null);
 
         assertEquals("Başlık", result.getTitle());
         verify(postRepository).save(any(Post.class));
+    }
+
+    // Faz 2 adım 4: attachmentKeys geçildiğinde postAttachmentService.attach
+    // aynı @Transactional sınırı içinde çağrılmalı - geçersiz bir key tüm
+    // post oluşturmayı geri almalı (bkz. PostServiceImpl.create javadoc).
+    @Test
+    void create_delegatesAttachmentsToPostAttachmentService() {
+        when(subGroupRepository.findById(SUB_GROUP_ID)).thenReturn(Optional.of(subGroup));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(USER_ID, DISEASE_GROUP_ID))
+                .thenReturn(true);
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        List<String> keys = List.of("posts/abc.jpg");
+
+        postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik", keys);
+
+        verify(postAttachmentService).attach(any(Post.class), eq(keys));
     }
 
     // Faz 2 adım 1: sort=popular verilince reaksiyon-sayısı sorgusuna,

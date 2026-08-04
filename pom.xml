@@ -29,6 +29,7 @@
     <properties>
         <java.version>21</java.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <aws-sdk.version>2.46.18</aws-sdk.version>
     </properties>
     <dependencies>
         <dependency>
@@ -106,6 +107,16 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Faz 2 adım 4: gönderi fotoğrafları için Cloudflare R2 (S3 uyumlu)
+             object storage. R2'ye sadece presigned URL üretmek/silmek için
+             kullanılıyor, dosya backend üzerinden geçmiyor (bkz.
+             MediaStorageServiceImpl). -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws-sdk.version}</version>
         </dependency>
 
         <dependency>

@@ -9,6 +9,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
@@ -18,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class PostServiceImpl implements PostService {
@@ -26,10 +29,17 @@ public class PostServiceImpl implements PostService {
     private final SubGroupRepository subGroupRepository;
     private final UserRepository userRepository;
     private final UserDiseaseGroupRepository userDiseaseGroupRepository;
+    // Faz 2 adım 4: post + fotoğrafları tek bir aggregate/kullanım senaryosu
+    // olarak ele alınıyor (Reaction/SavedPost'un aksine - onlar post'a
+    // sadece id ile referans veren bağımsız aggregate'ler, bu yüzden
+    // controller katmanında ayrı ayrı kompoze ediliyorlar). Attachment
+    // doğrulaması burada, aynı @Transactional sınırı içinde yapılıyor ki
+    // geçersiz bir fotoğraf referansı TÜM post oluşturmayı geri alsın.
+    private final PostAttachmentService postAttachmentService;
 
     @Override
     @Transactional
-    public Post create(Long subGroupId, Long userId, String title, String content) {
+    public Post create(Long subGroupId, Long userId, String title, String content, List<String> attachmentKeys) {
         SubGroup subGroup = subGroupRepository.findById(subGroupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Alt grup bulunamadı"));
         User user = userRepository.findById(userId)
@@ -44,7 +54,9 @@ public class PostServiceImpl implements PostService {
                 .content(content)
                 .build();
 
-        return postRepository.save(post);
+        post = postRepository.save(post);
+        postAttachmentService.attach(post, attachmentKeys);
+        return post;
     }
 
     @Override
@@ -110,6 +122,12 @@ public class PostServiceImpl implements PostService {
     public void delete(Long postId, Long requesterId, boolean requesterIsAdmin) {
         Post post = getById(postId);
         assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
+        // post_attachments.post_id zaten ON DELETE CASCADE (bkz. V14
+        // migration), ama R2'deki gerçek dosyalar DB cascade'inin
+        // kapsamı dışında - onları açıkça silmezsek sonsuza kadar orphan
+        // kalırlar. Bu yüzden post satırı silinmeden ÖNCE, storage
+        // key'leri hâlâ okunabilirken temizleniyor.
+        postAttachmentService.deleteAllForPost(postId);
         postRepository.delete(post);
     }
 

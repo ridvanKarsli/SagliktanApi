@@ -2,13 +2,17 @@ package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Comment;
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.dto.response.CommentResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.SearchResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
@@ -41,6 +45,8 @@ public class SearchController {
     private final UserService userService;
     private final ReactionService reactionService;
     private final SavedPostService savedPostService;
+    private final PostAttachmentService postAttachmentService;
+    private final MediaStorageService mediaStorageService;
 
     @GetMapping("/api/search")
     public SearchResponse search(@RequestParam String q, @AuthenticationPrincipal CustomUserDetails principal) {
@@ -55,9 +61,13 @@ public class SearchController {
         Map<Long, ReactionSummary> postReactions = reactionService.getSummaries(ReactionTargetType.POST, postIds, principal.getId());
         Set<Long> savedPostIds = savedPostService.findSavedPostIds(principal.getId(), postIds);
         Map<Long, Long> savedPostCounts = savedPostService.countByPostIds(postIds);
+        Map<Long, List<PostAttachment>> postAttachments = postAttachmentService.findByPostIds(postIds);
         var posts = postResults.stream()
                 .map(p -> PostResponse.from(p, postReactions.get(p.getId()), savedPostIds.contains(p.getId()),
-                        savedPostCounts.get(p.getId())))
+                        savedPostCounts.get(p.getId()),
+                        postAttachments.getOrDefault(p.getId(), List.of()).stream()
+                                .map(a -> PostAttachmentResponse.from(a, mediaStorageService))
+                                .toList()))
                 .toList();
 
         List<Comment> commentResults = commentService.search(q, topResults).getContent();

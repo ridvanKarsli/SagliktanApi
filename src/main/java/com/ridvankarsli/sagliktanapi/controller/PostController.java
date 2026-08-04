@@ -1,6 +1,7 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
 import com.ridvankarsli.sagliktanapi.domain.Role;
@@ -9,9 +10,12 @@ import com.ridvankarsli.sagliktanapi.dto.request.ReactionRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.MessageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.ContentReportService;
+import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
@@ -45,6 +49,8 @@ public class PostController {
     private final ContentReportService contentReportService;
     private final ReactionService reactionService;
     private final SavedPostService savedPostService;
+    private final PostAttachmentService postAttachmentService;
+    private final MediaStorageService mediaStorageService;
 
     @PostMapping("/api/sub-groups/{subGroupId}/posts")
     @ResponseStatus(HttpStatus.CREATED)
@@ -53,9 +59,13 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @Valid @RequestBody PostRequest request
     ) {
-        return PostResponse.from(
-                postService.create(subGroupId, principal.getId(), request.title(), request.content())
-        );
+        Post post = postService.create(
+                subGroupId, principal.getId(), request.title(), request.content(), request.attachmentKeys());
+        // Yeni oluşturulan bir posta henüz kimse reaksiyon veremedi/
+        // kaydedemedi - sadece az önce eklenen fotoğrafları çekmek yeterli,
+        // reaksiyon/kaydetme sorgusu atmaya gerek yok.
+        List<PostAttachmentResponse> attachments = toAttachmentResponses(postAttachmentService.findByPostId(post.getId()));
+        return PostResponse.from(post, ReactionSummary.empty(), false, 0L, attachments);
     }
 
     // Faz 2 adım 1: ?sort=recent (varsayılan) | popular. Pageable'ın kendi
@@ -166,18 +176,20 @@ public class PostController {
     }
 
     // Sayfalanmış bir Post listesini, reaksiyon + kaydetme durumunu/sayısını
-    // toplu (N+1 sorgu değil) çekip PostResponse'a çeviren ortak yol -
-    // listBySubGroup/search/searchBySubGroup arasında tekrar etmesin diye
-    // tek yerde.
+    // ve fotoğrafları toplu (N+1 sorgu değil) çekip PostResponse'a çeviren
+    // ortak yol - listBySubGroup/search/searchBySubGroup arasında tekrar
+    // etmesin diye tek yerde.
     private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
         List<Post> posts = page.getContent();
         List<Long> ids = posts.stream().map(Post::getId).toList();
         Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
         Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
         Map<Long, Long> savedCounts = savedPostService.countByPostIds(ids);
+        Map<Long, List<PostAttachment>> attachmentsByPost = postAttachmentService.findByPostIds(ids);
         return PageResponse.from(page.map(post ->
                 PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()),
-                        savedCounts.get(post.getId()))));
+                        savedCounts.get(post.getId()),
+                        toAttachmentResponses(attachmentsByPost.getOrDefault(post.getId(), List.of())))));
     }
 
     // Tek bir Post için (getById/update) aynı zenginleştirme.
@@ -185,6 +197,11 @@ public class PostController {
         ReactionSummary reactions = reactionService.getSummary(ReactionTargetType.POST, post.getId(), principal.getId());
         boolean saved = savedPostService.isSaved(principal.getId(), post.getId());
         long savedCount = savedPostService.countByPostIds(List.of(post.getId())).getOrDefault(post.getId(), 0L);
-        return PostResponse.from(post, reactions, saved, savedCount);
+        List<PostAttachmentResponse> attachments = toAttachmentResponses(postAttachmentService.findByPostId(post.getId()));
+        return PostResponse.from(post, reactions, saved, savedCount, attachments);
+    }
+
+    private List<PostAttachmentResponse> toAttachmentResponses(List<PostAttachment> attachments) {
+        return attachments.stream().map(a -> PostAttachmentResponse.from(a, mediaStorageService)).toList();
     }
 }

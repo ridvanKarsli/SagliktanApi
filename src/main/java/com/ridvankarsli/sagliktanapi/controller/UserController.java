@@ -1,15 +1,19 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.dto.request.UpdateProfileRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
+import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
@@ -43,6 +47,8 @@ public class UserController {
     private final PostService postService;
     private final ReactionService reactionService;
     private final SavedPostService savedPostService;
+    private final PostAttachmentService postAttachmentService;
+    private final MediaStorageService mediaStorageService;
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
@@ -126,17 +132,21 @@ public class UserController {
         return toPageResponse(page, principal);
     }
 
-    // Reaksiyon + kaydetme durumunu/sayısını toplu çekip PostResponse'a
-    // çeviren ortak yol - PostController.toPageResponse ile aynı
-    // gerekçe/desen.
+    // Reaksiyon + kaydetme durumunu/sayısını ve fotoğrafları toplu çekip
+    // PostResponse'a çeviren ortak yol - PostController.toPageResponse ile
+    // aynı gerekçe/desen.
     private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
         List<Post> posts = page.getContent();
         List<Long> ids = posts.stream().map(Post::getId).toList();
         Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
         Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
         Map<Long, Long> savedCounts = savedPostService.countByPostIds(ids);
+        Map<Long, List<PostAttachment>> attachmentsByPost = postAttachmentService.findByPostIds(ids);
         return PageResponse.from(page.map(post ->
                 PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()),
-                        savedCounts.get(post.getId()))));
+                        savedCounts.get(post.getId()),
+                        attachmentsByPost.getOrDefault(post.getId(), List.of()).stream()
+                                .map(a -> PostAttachmentResponse.from(a, mediaStorageService))
+                                .toList())));
     }
 }

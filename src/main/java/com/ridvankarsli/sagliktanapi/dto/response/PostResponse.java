@@ -5,6 +5,7 @@ import com.ridvankarsli.sagliktanapi.domain.ReactionValue;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record PostResponse(
         Long id,
@@ -29,16 +30,21 @@ public record PostResponse(
         // sıralamasına da dahil ediliyor (bkz. PostRepository.
         // findBySubGroupIdOrderByPopularityDesc).
         long savedCount,
+        // Faz 2 adım 4: gönderiye eklenmiş fotoğraflar, galeri sırasına
+        // göre (bkz. PostAttachment.sortOrder).
+        List<PostAttachmentResponse> attachments,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    // Reaksiyon/kaydetme bilgisi olmayan yerler için (ör. yeni oluşturulan
-    // post - henüz kimse reaksiyon veremedi/kaydedemedi) kısayol.
+    // Reaksiyon/kaydetme/fotoğraf bilgisi olmayan yerler için kısayol.
     public static PostResponse from(Post post) {
-        return from(post, ReactionSummary.empty(), false, 0L);
+        return from(post, ReactionSummary.empty(), false, 0L, List.of());
     }
 
-    public static PostResponse from(Post post, ReactionSummary reactions, boolean saved, long savedCount) {
+    public static PostResponse from(
+            Post post, ReactionSummary reactions, boolean saved, long savedCount,
+            List<PostAttachmentResponse> attachments
+    ) {
         return new PostResponse(
                 post.getId(),
                 post.getSubGroup().getId(),
@@ -52,6 +58,7 @@ public record PostResponse(
                 reactions.myReaction(),
                 saved,
                 savedCount,
+                attachments,
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );
