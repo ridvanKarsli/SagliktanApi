@@ -72,12 +72,28 @@ public class PostController {
         return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }
 
-    // Rapor 4.5: PostgreSQL Full-Text Search
+    // Rapor 4.5: PostgreSQL Full-Text Search (platform geneli)
     @GetMapping("/api/posts/search")
     public PageResponse<PostResponse> search(
             @RequestParam String q, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.search(q, pageable);
+        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
+        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+    }
+
+    // Faz 2 adım 2: "Gönderiler" sayfasındaki alt gruba özel arama kutusu.
+    // Yukarıdaki genel /api/posts/search platform genelinde arıyor; bu uç
+    // sadece {subGroupId} içindeki gönderilerle sınırlı - bkz.
+    // PostRepository.searchBySubGroup yorumu (neden ayrı bir metot/uç).
+    @GetMapping("/api/sub-groups/{subGroupId}/posts/search")
+    public PageResponse<PostResponse> searchBySubGroup(
+            @PathVariable Long subGroupId,
+            @RequestParam String q,
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Post> page = postService.searchBySubGroup(subGroupId, q, pageable);
         Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
         return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }

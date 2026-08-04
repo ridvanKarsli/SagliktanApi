@@ -134,4 +134,26 @@ class PostServiceImplTest {
         verify(postRepository).findBySubGroupIdOrderByCreatedAtDesc(eq(SUB_GROUP_ID), captor.capture());
         assertEquals(Sort.unsorted(), captor.getValue().getSort());
     }
+
+    // Faz 2 adım 2: alt gruba özel arama.
+    @Test
+    void searchBySubGroup_returnsEmptyPage_whenQueryHasNoUsableWords() {
+        Page<Post> result = postService.searchBySubGroup(SUB_GROUP_ID, "   ", PageRequest.of(0, 20));
+
+        assertEquals(0, result.getTotalElements());
+        verify(postRepository, never()).searchBySubGroup(any(), any(), any(), any());
+    }
+
+    @Test
+    void searchBySubGroup_delegatesToRepository_withStrippedSort() {
+        Pageable dirtyPageable = PageRequest.of(0, 20, Sort.by("recent"));
+        when(postRepository.searchBySubGroup(eq(SUB_GROUP_ID), eq("diyabet"), any(), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        postService.searchBySubGroup(SUB_GROUP_ID, "diyabet", dirtyPageable);
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(postRepository).searchBySubGroup(eq(SUB_GROUP_ID), eq("diyabet"), any(), captor.capture());
+        assertEquals(Sort.unsorted(), captor.getValue().getSort());
+    }
 }

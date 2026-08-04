@@ -16,6 +16,8 @@ public interface PostService {
 
     Page<Post> search(String query, Pageable pageable);
 
+    Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable);
+
     Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content);
 
     void delete(Long postId, Long requesterId, boolean requesterIsAdmin);

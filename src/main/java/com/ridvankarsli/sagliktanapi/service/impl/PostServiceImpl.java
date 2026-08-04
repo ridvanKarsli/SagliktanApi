@@ -86,6 +86,15 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable) {
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
+        if (tsQuery == null) {
+            return Page.empty(pageable);
+        }
+        return postRepository.searchBySubGroup(subGroupId, query, tsQuery, SearchQueryUtil.stripSort(pageable));
+    }
+
+    @Override
     @Transactional
     public Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content) {
         Post post = getById(postId);
