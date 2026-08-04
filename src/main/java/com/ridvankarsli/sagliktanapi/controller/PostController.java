@@ -16,6 +16,7 @@ import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
+import com.ridvankarsli.sagliktanapi.service.SavedPostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ public class PostController {
     private final PostService postService;
     private final ContentReportService contentReportService;
     private final ReactionService reactionService;
+    private final SavedPostService savedPostService;
 
     @PostMapping("/api/sub-groups/{subGroupId}/posts")
     @ResponseStatus(HttpStatus.CREATED)
@@ -68,8 +71,7 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.listBySubGroup(subGroupId, PostSortOption.fromParam(sort), pageable);
-        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
-        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+        return toPageResponse(page, principal);
     }
 
     // Rapor 4.5: PostgreSQL Full-Text Search (platform geneli)
@@ -78,8 +80,7 @@ public class PostController {
             @RequestParam String q, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.search(q, pageable);
-        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
-        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+        return toPageResponse(page, principal);
     }
 
     // Faz 2 adım 2: "Gönderiler" sayfasındaki alt gruba özel arama kutusu.
@@ -94,14 +95,13 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.searchBySubGroup(subGroupId, q, pageable);
-        Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
-        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+        return toPageResponse(page, principal);
     }
 
     @GetMapping("/api/posts/{id}")
     public PostResponse getById(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         Post post = postService.getById(id);
-        return PostResponse.from(post, reactionService.getSummary(ReactionTargetType.POST, id, principal.getId()));
+        return toPostResponse(post, principal);
     }
 
     @PutMapping("/api/posts/{id}")
@@ -112,7 +112,23 @@ public class PostController {
     ) {
         boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
         Post post = postService.update(id, principal.getId(), isAdmin, request.title(), request.content());
-        return PostResponse.from(post, reactionService.getSummary(ReactionTargetType.POST, id, principal.getId()));
+        return toPostResponse(post, principal);
+    }
+
+    // Faz 2 adım 3: gönderiyi kaydet/kaydı kaldır (yıldızlama). Reaksiyon
+    // uçlarıyla aynı REST desenini izliyor: PUT = kaydet (idempotent - zaten
+    // kaydedilmişse no-op), DELETE = kaydı kaldır. Gövde döndürmeye gerek
+    // yok, frontend zaten optimistic UI güncelliyor.
+    @PutMapping("/api/posts/{id}/saved")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void savePost(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        savedPostService.save(principal.getId(), id);
+    }
+
+    @DeleteMapping("/api/posts/{id}/saved")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsavePost(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        savedPostService.unsave(principal.getId(), id);
     }
 
     @DeleteMapping("/api/posts/{id}")
@@ -149,8 +165,22 @@ public class PostController {
         return reactionService.getSummary(ReactionTargetType.POST, id, principal.getId());
     }
 
-    private Map<Long, ReactionSummary> reactionSummaries(List<Post> posts, CustomUserDetails principal) {
+    // Sayfalanmış bir Post listesini, reaksiyon + kaydetme durumunu toplu
+    // (N+1 sorgu değil) çekip PostResponse'a çeviren ortak yol - listBySubGroup/
+    // search/searchBySubGroup arasında tekrar etmesin diye tek yerde.
+    private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
+        List<Post> posts = page.getContent();
         List<Long> ids = posts.stream().map(Post::getId).toList();
-        return reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
+        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
+        Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
+        return PageResponse.from(page.map(post ->
+                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()))));
+    }
+
+    // Tek bir Post için (getById/update) aynı zenginleştirme.
+    private PostResponse toPostResponse(Post post, CustomUserDetails principal) {
+        ReactionSummary reactions = reactionService.getSummary(ReactionTargetType.POST, post.getId(), principal.getId());
+        boolean saved = savedPostService.isSaved(principal.getId(), post.getId());
+        return PostResponse.from(post, reactions, saved);
     }
 }

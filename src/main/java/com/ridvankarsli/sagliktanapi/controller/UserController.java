@@ -13,6 +13,7 @@ import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
+import com.ridvankarsli.sagliktanapi.service.SavedPostService;
 import com.ridvankarsli.sagliktanapi.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/users")
@@ -40,6 +42,7 @@ public class UserController {
     private final DiseaseGroupService diseaseGroupService;
     private final PostService postService;
     private final ReactionService reactionService;
+    private final SavedPostService savedPostService;
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
@@ -79,9 +82,19 @@ public class UserController {
             Pageable pageable
     ) {
         Page<Post> page = postService.listByUser(principal.getId(), pageable);
-        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(
-                ReactionTargetType.POST, page.getContent().stream().map(Post::getId).toList(), principal.getId());
-        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+        return toPageResponse(page, principal);
+    }
+
+    // Faz 2 adım 3: profildeki "Kaydedilenler" sekmesi - sadece kendi
+    // kaydettiklerini görebilirsin, bu yüzden "/me" altında, {id}/saved-posts
+    // gibi başkasının kaydettiklerini açığa çıkaran bir uç yok.
+    @GetMapping("/me/saved-posts")
+    public PageResponse<PostResponse> mySavedPosts(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            Pageable pageable
+    ) {
+        Page<Post> page = savedPostService.listSavedByUser(principal.getId(), pageable);
+        return toPageResponse(page, principal);
     }
 
     // Gelişmiş arama: ad/soyada göre kişi arama (bkz. V7 migration).
@@ -110,8 +123,17 @@ public class UserController {
             @PathVariable Long id, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.listByUser(id, pageable);
-        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(
-                ReactionTargetType.POST, page.getContent().stream().map(Post::getId).toList(), principal.getId());
-        return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
+        return toPageResponse(page, principal);
+    }
+
+    // Reaksiyon + kaydetme durumunu toplu çekip PostResponse'a çeviren ortak
+    // yol - PostController.toPageResponse ile aynı gerekçe/desen.
+    private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
+        List<Post> posts = page.getContent();
+        List<Long> ids = posts.stream().map(Post::getId).toList();
+        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
+        Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
+        return PageResponse.from(page.map(post ->
+                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()))));
     }
 }

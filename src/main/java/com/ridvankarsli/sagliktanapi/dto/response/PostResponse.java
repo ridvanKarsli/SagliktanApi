@@ -23,16 +23,18 @@ public record PostResponse(
         long notHelpfulCount,
         // null ise istek sahibi bu posta hiç reaksiyon vermemiş.
         ReactionValue myReaction,
+        // Faz 2 adım 3: istek sahibi bu gönderiyi kaydetmiş (yıldızlamış) mi.
+        boolean saved,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    // Reaksiyon bilgisi olmayan yerler için (ör. yeni oluşturulan post -
-    // henüz kimse reaksiyon veremedi) kısayol.
+    // Reaksiyon/kaydetme bilgisi olmayan yerler için (ör. yeni oluşturulan
+    // post - henüz kimse reaksiyon veremedi/kaydedemedi) kısayol.
     public static PostResponse from(Post post) {
-        return from(post, ReactionSummary.empty());
+        return from(post, ReactionSummary.empty(), false);
     }
 
-    public static PostResponse from(Post post, ReactionSummary reactions) {
+    public static PostResponse from(Post post, ReactionSummary reactions, boolean saved) {
         return new PostResponse(
                 post.getId(),
                 post.getSubGroup().getId(),
@@ -44,6 +46,7 @@ public record PostResponse(
                 reactions.helpfulCount(),
                 reactions.notHelpfulCount(),
                 reactions.myReaction(),
+                saved,
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

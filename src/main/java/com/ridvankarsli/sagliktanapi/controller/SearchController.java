@@ -12,6 +12,7 @@ import com.ridvankarsli.sagliktanapi.service.CommentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
+import com.ridvankarsli.sagliktanapi.service.SavedPostService;
 import com.ridvankarsli.sagliktanapi.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // Twitter/arama çubuğu tarzı birleşik "hızlı arama": tek istekte post,
 // yorum ve kişi sonuçlarından en alakalı ilk birkaçını bir arada döner.
@@ -38,6 +40,7 @@ public class SearchController {
     private final CommentService commentService;
     private final UserService userService;
     private final ReactionService reactionService;
+    private final SavedPostService savedPostService;
 
     @GetMapping("/api/search")
     public SearchResponse search(@RequestParam String q, @AuthenticationPrincipal CustomUserDetails principal) {
@@ -48,9 +51,12 @@ public class SearchController {
         Pageable topResults = PageRequest.of(0, QUICK_SEARCH_LIMIT);
 
         List<Post> postResults = postService.search(q, topResults).getContent();
-        Map<Long, ReactionSummary> postReactions = reactionService.getSummaries(
-                ReactionTargetType.POST, postResults.stream().map(Post::getId).toList(), principal.getId());
-        var posts = postResults.stream().map(p -> PostResponse.from(p, postReactions.get(p.getId()))).toList();
+        List<Long> postIds = postResults.stream().map(Post::getId).toList();
+        Map<Long, ReactionSummary> postReactions = reactionService.getSummaries(ReactionTargetType.POST, postIds, principal.getId());
+        Set<Long> savedPostIds = savedPostService.findSavedPostIds(principal.getId(), postIds);
+        var posts = postResults.stream()
+                .map(p -> PostResponse.from(p, postReactions.get(p.getId()), savedPostIds.contains(p.getId())))
+                .toList();
 
         List<Comment> commentResults = commentService.search(q, topResults).getContent();
         Map<Long, ReactionSummary> commentReactions = reactionService.getSummaries(
