@@ -55,12 +55,20 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Page<Post> listBySubGroup(Long subGroupId, PostSortOption sort, Pageable pageable) {
+        // KÖK NEDEN (canlıda görüldü): Controller'daki ?sort= query
+        // parametresi, Spring'in Pageable argument resolver'ının KENDİ
+        // page/size/sort binding'i ile aynı isimde - "sort=recent" gelince
+        // Spring bunu Pageable.getSort() içine "recent alanına göre sırala"
+        // olarak dolduruyor, bu da derived query'de Post'ta "recent" diye
+        // bir alan aranıp PropertyReferenceException'a yol açıyor.
+        // Sıralamayı tamamen PostSortOption üzerinden biz yönettiğimiz için
+        // Pageable'dan gelen Sort'u HER iki dalda da (sadece popular'da
+        // değil) temizlemek gerekiyor.
+        Pageable safePageable = SearchQueryUtil.stripSort(pageable);
         if (sort == PostSortOption.POPULAR) {
-            // Native query kendi ORDER BY'ını taşıyor - Pageable'daki Sort
-            // temizlenmeli (bkz. PostRepository yorumu + SearchQueryUtil).
-            return postRepository.findBySubGroupIdOrderByReactionCountDesc(subGroupId, SearchQueryUtil.stripSort(pageable));
+            return postRepository.findBySubGroupIdOrderByReactionCountDesc(subGroupId, safePageable);
         }
-        return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, pageable);
+        return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, safePageable);
     }
 
     @Override

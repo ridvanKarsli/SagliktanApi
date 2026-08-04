@@ -13,12 +13,14 @@ import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.Optional;
 
@@ -112,5 +114,24 @@ class PostServiceImplTest {
 
         verify(postRepository).findBySubGroupIdOrderByCreatedAtDesc(SUB_GROUP_ID, pageable);
         verify(postRepository, never()).findBySubGroupIdOrderByReactionCountDesc(any(), any());
+    }
+
+    // Regresyon: canlıda görülen kök neden - Spring'in Pageable resolver'ı
+    // "?sort=recent" query param'ını KENDİ Pageable.sort binding'i sanıp
+    // Post entity'sinde olmayan "recent" adlı bir alana göre sıralama
+    // Sort'u üretiyordu, bu da PropertyReferenceException'a yol açıyordu.
+    // Bu test, gelen Pageable'da böyle bir Sort olsa bile repository'e HER
+    // ZAMAN sort'u temizlenmiş (unsorted) bir Pageable gittiğini doğruluyor.
+    @Test
+    void listBySubGroup_stripsIncomingPageableSort_evenIfCallerSuppliesOne() {
+        Pageable dirtyPageable = PageRequest.of(0, 20, Sort.by("recent"));
+        when(postRepository.findBySubGroupIdOrderByCreatedAtDesc(eq(SUB_GROUP_ID), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        postService.listBySubGroup(SUB_GROUP_ID, PostSortOption.RECENT, dirtyPageable);
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(postRepository).findBySubGroupIdOrderByCreatedAtDesc(eq(SUB_GROUP_ID), captor.capture());
+        assertEquals(Sort.unsorted(), captor.getValue().getSort());
     }
 }
