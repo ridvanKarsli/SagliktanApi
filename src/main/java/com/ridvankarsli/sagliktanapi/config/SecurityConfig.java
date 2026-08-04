@@ -6,6 +6,7 @@ import com.ridvankarsli.sagliktanapi.security.RateLimitFilter;
 import com.ridvankarsli.sagliktanapi.security.RestAccessDeniedHandler;
 import com.ridvankarsli.sagliktanapi.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -25,6 +26,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 // Rapor adım 5: Spring Security temel konfigürasyonu + JWT filter zinciri.
@@ -41,6 +43,13 @@ public class SecurityConfig {
     private final CustomUserDetailsService userDetailsService;
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
+
+    // app.cors.allowed-origins -> ALLOWED_ORIGINS env degiskeni (bkz.
+    // application.properties). Prod'da bu deger set edilmiyor, varsayilan
+    // (sagliktan.com) kullaniliyor - davranis eskisiyle ayni. Staging
+    // ortaminda Vercel preview domain'i de bu listeye eklenecek.
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOriginsRaw;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -66,11 +75,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-                "https://sagliktan.com",
-                "https://www.sagliktan.com",
-                "http://localhost:3000"
-        ));
+        config.setAllowedOrigins(parseAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(false);
@@ -79,6 +84,16 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    // WebSocketConfig da ayni ALLOWED_ORIGINS degerini kullaniyor (orada
+    // ayri enjekte ediliyor - Spring CORS filter'indan tamamen farkli bir
+    // mekanizma oldugu icin bean paylasimi yapilamiyor).
+    List<String> parseAllowedOrigins() {
+        return Arrays.stream(allowedOriginsRaw.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toList();
     }
 
     @Bean
