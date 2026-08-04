@@ -4,8 +4,8 @@ import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 
 // Faz 2 adım 1: gönderi listeleme sıralama seçeneği.
 // RECENT: created_at DESC (mevcut/varsayılan davranış, geriye dönük uyumlu).
-// POPULAR: HELPFUL reaksiyon sayısına göre DESC, eşitlikte created_at DESC
-// (bkz. PostRepository.findBySubGroupIdOrderByReactionCountDesc).
+// POPULAR: reaksiyon + kaydedilme sayısı toplamına göre DESC, eşitlikte
+// created_at DESC (bkz. PostRepository.findBySubGroupIdOrderByPopularityDesc).
 public enum PostSortOption {
     RECENT,
     POPULAR;

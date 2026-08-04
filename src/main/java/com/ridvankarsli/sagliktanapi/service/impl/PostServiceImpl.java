@@ -66,7 +66,7 @@ public class PostServiceImpl implements PostService {
         // değil) temizlemek gerekiyor.
         Pageable safePageable = SearchQueryUtil.stripSort(pageable);
         if (sort == PostSortOption.POPULAR) {
-            return postRepository.findBySubGroupIdOrderByReactionCountDesc(subGroupId, safePageable);
+            return postRepository.findBySubGroupIdOrderByPopularityDesc(subGroupId, safePageable);
         }
         return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, safePageable);
     }

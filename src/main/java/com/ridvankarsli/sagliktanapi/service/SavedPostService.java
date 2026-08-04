@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 public interface SavedPostService {
@@ -18,6 +19,10 @@ public interface SavedPostService {
     // Feed/liste ekranlarında her post için tek tek sorgu atmamak için toplu
     // kontrol - bkz. ReactionService.getSummaries ile aynı gerekçe.
     Set<Long> findSavedPostIds(Long userId, Collection<Long> postIds);
+
+    // Postlarda gösterilen "N kişi kaydetti" sayısı - toplu, kullanıcıdan
+    // bağımsız (kimin kaydettiği değil, kaç kişinin kaydettiği).
+    Map<Long, Long> countByPostIds(Collection<Long> postIds);
 
     Page<Post> listSavedByUser(Long userId, Pageable pageable);
 }

@@ -32,4 +32,14 @@ public interface SavedPostRepository extends JpaRepository<SavedPost, Long> {
     // her post için ayrı ayrı sorgu atmamak için (bkz. PostController).
     @Query("select sp.post.id from SavedPost sp where sp.user.id = :userId and sp.post.id in :postIds")
     List<Long> findSavedPostIds(@Param("userId") Long userId, @Param("postIds") Collection<Long> postIds);
+
+    // Postlarda gösterilen "N kişi kaydetti" sayısı için toplu kayıt sayısı -
+    // yine ReactionRepository.countGrouped ile aynı desen.
+    @Query("select sp.post.id as postId, count(sp) as count from SavedPost sp where sp.post.id in :postIds group by sp.post.id")
+    List<SavedPostCountRow> countGrouped(@Param("postIds") Collection<Long> postIds);
+
+    interface SavedPostCountRow {
+        Long getPostId();
+        long getCount();
+    }
 }

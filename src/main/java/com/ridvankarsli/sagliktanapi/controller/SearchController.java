@@ -54,8 +54,10 @@ public class SearchController {
         List<Long> postIds = postResults.stream().map(Post::getId).toList();
         Map<Long, ReactionSummary> postReactions = reactionService.getSummaries(ReactionTargetType.POST, postIds, principal.getId());
         Set<Long> savedPostIds = savedPostService.findSavedPostIds(principal.getId(), postIds);
+        Map<Long, Long> savedPostCounts = savedPostService.countByPostIds(postIds);
         var posts = postResults.stream()
-                .map(p -> PostResponse.from(p, postReactions.get(p.getId()), savedPostIds.contains(p.getId())))
+                .map(p -> PostResponse.from(p, postReactions.get(p.getId()), savedPostIds.contains(p.getId()),
+                        savedPostCounts.get(p.getId())))
                 .toList();
 
         List<Comment> commentResults = commentService.search(q, topResults).getContent();

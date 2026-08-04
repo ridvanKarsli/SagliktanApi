@@ -96,12 +96,12 @@ class PostServiceImplTest {
     @Test
     void listBySubGroup_usesReactionCountQuery_whenSortIsPopular() {
         Pageable pageable = PageRequest.of(0, 20);
-        when(postRepository.findBySubGroupIdOrderByReactionCountDesc(eq(SUB_GROUP_ID), any(Pageable.class)))
+        when(postRepository.findBySubGroupIdOrderByPopularityDesc(eq(SUB_GROUP_ID), any(Pageable.class)))
                 .thenReturn(Page.empty());
 
         postService.listBySubGroup(SUB_GROUP_ID, PostSortOption.POPULAR, pageable);
 
-        verify(postRepository).findBySubGroupIdOrderByReactionCountDesc(eq(SUB_GROUP_ID), any(Pageable.class));
+        verify(postRepository).findBySubGroupIdOrderByPopularityDesc(eq(SUB_GROUP_ID), any(Pageable.class));
         verify(postRepository, never()).findBySubGroupIdOrderByCreatedAtDesc(any(), any());
     }
 
@@ -113,7 +113,7 @@ class PostServiceImplTest {
         postService.listBySubGroup(SUB_GROUP_ID, PostSortOption.RECENT, pageable);
 
         verify(postRepository).findBySubGroupIdOrderByCreatedAtDesc(SUB_GROUP_ID, pageable);
-        verify(postRepository, never()).findBySubGroupIdOrderByReactionCountDesc(any(), any());
+        verify(postRepository, never()).findBySubGroupIdOrderByPopularityDesc(any(), any());
     }
 
     // Regresyon: canlıda görülen kök neden - Spring'in Pageable resolver'ı

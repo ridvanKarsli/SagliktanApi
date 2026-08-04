@@ -25,16 +25,20 @@ public record PostResponse(
         ReactionValue myReaction,
         // Faz 2 adım 3: istek sahibi bu gönderiyi kaydetmiş (yıldızlamış) mi.
         boolean saved,
+        // Faz 2 adım 3b: bu gönderiyi toplam kaç kişi kaydetmiş - popülerlik
+        // sıralamasına da dahil ediliyor (bkz. PostRepository.
+        // findBySubGroupIdOrderByPopularityDesc).
+        long savedCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     // Reaksiyon/kaydetme bilgisi olmayan yerler için (ör. yeni oluşturulan
     // post - henüz kimse reaksiyon veremedi/kaydedemedi) kısayol.
     public static PostResponse from(Post post) {
-        return from(post, ReactionSummary.empty(), false);
+        return from(post, ReactionSummary.empty(), false, 0L);
     }
 
-    public static PostResponse from(Post post, ReactionSummary reactions, boolean saved) {
+    public static PostResponse from(Post post, ReactionSummary reactions, boolean saved, long savedCount) {
         return new PostResponse(
                 post.getId(),
                 post.getSubGroup().getId(),
@@ -47,6 +51,7 @@ public record PostResponse(
                 reactions.notHelpfulCount(),
                 reactions.myReaction(),
                 saved,
+                savedCount,
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

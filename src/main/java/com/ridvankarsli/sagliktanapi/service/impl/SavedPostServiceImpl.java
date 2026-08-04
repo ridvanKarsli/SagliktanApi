@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -69,6 +71,21 @@ public class SavedPostServiceImpl implements SavedPostService {
             return Set.of();
         }
         return new HashSet<>(savedPostRepository.findSavedPostIds(userId, postIds));
+    }
+
+    @Override
+    public Map<Long, Long> countByPostIds(Collection<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Long id : postIds) {
+            counts.put(id, 0L);
+        }
+        for (SavedPostRepository.SavedPostCountRow row : savedPostRepository.countGrouped(postIds)) {
+            counts.put(row.getPostId(), row.getCount());
+        }
+        return counts;
     }
 
     @Override

@@ -126,14 +126,17 @@ public class UserController {
         return toPageResponse(page, principal);
     }
 
-    // Reaksiyon + kaydetme durumunu toplu çekip PostResponse'a çeviren ortak
-    // yol - PostController.toPageResponse ile aynı gerekçe/desen.
+    // Reaksiyon + kaydetme durumunu/sayısını toplu çekip PostResponse'a
+    // çeviren ortak yol - PostController.toPageResponse ile aynı
+    // gerekçe/desen.
     private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
         List<Post> posts = page.getContent();
         List<Long> ids = posts.stream().map(Post::getId).toList();
         Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
         Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
+        Map<Long, Long> savedCounts = savedPostService.countByPostIds(ids);
         return PageResponse.from(page.map(post ->
-                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()))));
+                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()),
+                        savedCounts.get(post.getId()))));
     }
 }

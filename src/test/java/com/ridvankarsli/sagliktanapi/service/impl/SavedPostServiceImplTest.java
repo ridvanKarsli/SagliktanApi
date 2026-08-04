@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -110,6 +111,35 @@ class SavedPostServiceImplTest {
     void isSaved_returnsFalse_whenUserIdIsNull() {
         assertFalse(savedPostService.isSaved(null, POST_ID));
         verify(savedPostRepository, never()).existsByUserIdAndPostId(any(), any());
+    }
+
+    @Test
+    void countByPostIds_returnsEmptyMap_whenPostIdsIsEmpty() {
+        Map<Long, Long> result = savedPostService.countByPostIds(List.of());
+
+        assertTrue(result.isEmpty());
+        verify(savedPostRepository, never()).countGrouped(any());
+    }
+
+    @Test
+    void countByPostIds_defaultsToZero_forPostsWithNoSaves() {
+        Long otherPostId = 20L;
+        when(savedPostRepository.countGrouped(List.of(POST_ID, otherPostId)))
+                .thenReturn(List.of(row(POST_ID, 3L)));
+
+        Map<Long, Long> result = savedPostService.countByPostIds(List.of(POST_ID, otherPostId));
+
+        assertEquals(3L, result.get(POST_ID));
+        assertEquals(0L, result.get(otherPostId));
+    }
+
+    private static SavedPostRepository.SavedPostCountRow row(Long postId, long count) {
+        return new SavedPostRepository.SavedPostCountRow() {
+            @Override
+            public Long getPostId() { return postId; }
+            @Override
+            public long getCount() { return count; }
+        };
     }
 
     // Regresyon: Faz 2 adım 1'de yaşanan "Pageable'ın otomatik sort binding'i

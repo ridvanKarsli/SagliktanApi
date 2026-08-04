@@ -16,15 +16,19 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // postun hiç görünmemesine yol açabilir.
     Page<Post> findBySubGroupIdOrderByCreatedAtDesc(Long subGroupId, Pageable pageable);
 
-    // Faz 2 adım 1: popülerlik sıralaması (?sort=popular). Reaction hedefe
-    // (post/comment) polimorfik (target_type + target_id, FK yok - bkz.
-    // Reaction entity yorumu) bağlandığı için JPQL join kurulamıyor, search()
-    // metodundaki gibi native query gerekiyor. LEFT JOIN sayesinde hiç
-    // reaksiyonu olmayan gönderiler de (0 sayıyla) listede kalıyor; eşit
-    // sayıda created_at DESC ikincil kriter olarak devreye giriyor -
-    // deterministik sayfalama garantisi yukarıdaki OrderByCreatedAtDesc
-    // metoduyla aynı gerekçeyle (ORDER BY olmadan Postgres satır sırası
-    // garanti değil).
+    // Faz 2 adım 1 (+ adım 3b'de genişletildi): popülerlik sıralaması
+    // (?sort=popular). Hem reaksiyon hem kaydedilme sayısı popülerliğe dahil
+    // - ikisi de post'a polimorfik/ayrı tablo üzerinden bağlandığı için
+    // JPQL join kurulamıyor, search() metodundaki gibi native query
+    // gerekiyor. Her iki child tablo da aynı sorguda LEFT JOIN edildiğinde
+    // satırlar çarpımsal (fan-out) çoğaldığından COUNT(r.id) yerine
+    // COUNT(DISTINCT r.id) kullanılmalı - aksi halde bir post için hem
+    // reaksiyon hem kaydedilme sayısı gerçek değerin üzerinde hesaplanır.
+    // LEFT JOIN sayesinde hiç reaksiyonu/kaydı olmayan gönderiler de (0
+    // sayıyla) listede kalıyor; eşit toplamda created_at DESC ikincil
+    // kriter olarak devreye giriyor - deterministik sayfalama garantisi
+    // yukarıdaki OrderByCreatedAtDesc metoduyla aynı gerekçeyle (ORDER BY
+    // olmadan Postgres satır sırası garanti değil).
     // DİKKAT: bu native sorgu kendi ORDER BY'ını içeriyor - çağıran taraf
     // (PostServiceImpl) Pageable'ı SearchQueryUtil.stripSort ile vermeli,
     // aksi halde search()'te daha önce yaşanan "çift ORDER BY" Postgres
@@ -32,12 +36,13 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query(
             value = "SELECT p.* FROM posts p " +
                     "LEFT JOIN reactions r ON r.target_type = 'POST' AND r.target_id = p.id AND r.value = 'HELPFUL' " +
+                    "LEFT JOIN saved_posts sp ON sp.post_id = p.id " +
                     "WHERE p.sub_group_id = :subGroupId " +
                     "GROUP BY p.id " +
-                    "ORDER BY COUNT(r.id) DESC, p.created_at DESC",
+                    "ORDER BY (COUNT(DISTINCT r.id) + COUNT(DISTINCT sp.id)) DESC, p.created_at DESC",
             countQuery = "SELECT count(*) FROM posts p WHERE p.sub_group_id = :subGroupId",
             nativeQuery = true)
-    Page<Post> findBySubGroupIdOrderByReactionCountDesc(@Param("subGroupId") Long subGroupId, Pageable pageable);
+    Page<Post> findBySubGroupIdOrderByPopularityDesc(@Param("subGroupId") Long subGroupId, Pageable pageable);
 
     // Alt grup listesinde gösterilen sohbet (post) sayısı
     long countBySubGroupId(Long subGroupId);

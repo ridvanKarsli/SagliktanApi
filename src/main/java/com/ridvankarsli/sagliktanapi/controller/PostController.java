@@ -165,22 +165,26 @@ public class PostController {
         return reactionService.getSummary(ReactionTargetType.POST, id, principal.getId());
     }
 
-    // Sayfalanmış bir Post listesini, reaksiyon + kaydetme durumunu toplu
-    // (N+1 sorgu değil) çekip PostResponse'a çeviren ortak yol - listBySubGroup/
-    // search/searchBySubGroup arasında tekrar etmesin diye tek yerde.
+    // Sayfalanmış bir Post listesini, reaksiyon + kaydetme durumunu/sayısını
+    // toplu (N+1 sorgu değil) çekip PostResponse'a çeviren ortak yol -
+    // listBySubGroup/search/searchBySubGroup arasında tekrar etmesin diye
+    // tek yerde.
     private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
         List<Post> posts = page.getContent();
         List<Long> ids = posts.stream().map(Post::getId).toList();
         Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
         Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
+        Map<Long, Long> savedCounts = savedPostService.countByPostIds(ids);
         return PageResponse.from(page.map(post ->
-                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()))));
+                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()),
+                        savedCounts.get(post.getId()))));
     }
 
     // Tek bir Post için (getById/update) aynı zenginleştirme.
     private PostResponse toPostResponse(Post post, CustomUserDetails principal) {
         ReactionSummary reactions = reactionService.getSummary(ReactionTargetType.POST, post.getId(), principal.getId());
         boolean saved = savedPostService.isSaved(principal.getId(), post.getId());
-        return PostResponse.from(post, reactions, saved);
+        long savedCount = savedPostService.countByPostIds(List.of(post.getId())).getOrDefault(post.getId(), 0L);
+        return PostResponse.from(post, reactions, saved, savedCount);
     }
 }
