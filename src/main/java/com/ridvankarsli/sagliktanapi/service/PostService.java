@@ -10,7 +10,7 @@ public interface PostService {
 
     Post getById(Long id);
 
-    Page<Post> listBySubGroup(Long subGroupId, Pageable pageable);
+    Page<Post> listBySubGroup(Long subGroupId, PostSortOption sort, Pageable pageable);
 
     Page<Post> listByUser(Long userId, Pageable pageable);
 

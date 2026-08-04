@@ -13,6 +13,7 @@ import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.ContentReportService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
 import jakarta.validation.Valid;
@@ -54,11 +55,19 @@ public class PostController {
         );
     }
 
+    // Faz 2 adım 1: ?sort=recent (varsayılan) | popular. Pageable'ın kendi
+    // sort binding'i yerine ayrı bir @RequestParam kullanılıyor çünkü
+    // "popular" derived/native query'lerde zaten sabit bir ORDER BY
+    // taşıyor (bkz. PostServiceImpl) - Pageable.sort buraya karışırsa
+    // anlamsız/çakışan bir davranış olurdu.
     @GetMapping("/api/sub-groups/{subGroupId}/posts")
     public PageResponse<PostResponse> listBySubGroup(
-            @PathVariable Long subGroupId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
+            @PathVariable Long subGroupId,
+            @RequestParam(defaultValue = "recent") String sort,
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        Page<Post> page = postService.listBySubGroup(subGroupId, pageable);
+        Page<Post> page = postService.listBySubGroup(subGroupId, PostSortOption.fromParam(sort), pageable);
         Map<Long, ReactionSummary> reactions = reactionSummaries(page.getContent(), principal);
         return PageResponse.from(page.map(post -> PostResponse.from(post, reactions.get(post.getId()))));
     }

@@ -16,6 +16,29 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // postun hiç görünmemesine yol açabilir.
     Page<Post> findBySubGroupIdOrderByCreatedAtDesc(Long subGroupId, Pageable pageable);
 
+    // Faz 2 adım 1: popülerlik sıralaması (?sort=popular). Reaction hedefe
+    // (post/comment) polimorfik (target_type + target_id, FK yok - bkz.
+    // Reaction entity yorumu) bağlandığı için JPQL join kurulamıyor, search()
+    // metodundaki gibi native query gerekiyor. LEFT JOIN sayesinde hiç
+    // reaksiyonu olmayan gönderiler de (0 sayıyla) listede kalıyor; eşit
+    // sayıda created_at DESC ikincil kriter olarak devreye giriyor -
+    // deterministik sayfalama garantisi yukarıdaki OrderByCreatedAtDesc
+    // metoduyla aynı gerekçeyle (ORDER BY olmadan Postgres satır sırası
+    // garanti değil).
+    // DİKKAT: bu native sorgu kendi ORDER BY'ını içeriyor - çağıran taraf
+    // (PostServiceImpl) Pageable'ı SearchQueryUtil.stripSort ile vermeli,
+    // aksi halde search()'te daha önce yaşanan "çift ORDER BY" Postgres
+    // syntax hatası (bkz. SearchQueryUtil javadoc) burada da tekrarlanır.
+    @Query(
+            value = "SELECT p.* FROM posts p " +
+                    "LEFT JOIN reactions r ON r.target_type = 'POST' AND r.target_id = p.id AND r.value = 'HELPFUL' " +
+                    "WHERE p.sub_group_id = :subGroupId " +
+                    "GROUP BY p.id " +
+                    "ORDER BY COUNT(r.id) DESC, p.created_at DESC",
+            countQuery = "SELECT count(*) FROM posts p WHERE p.sub_group_id = :subGroupId",
+            nativeQuery = true)
+    Page<Post> findBySubGroupIdOrderByReactionCountDesc(@Param("subGroupId") Long subGroupId, Pageable pageable);
+
     // Alt grup listesinde gösterilen sohbet (post) sayısı
     long countBySubGroupId(Long subGroupId);
 

@@ -10,6 +10,7 @@ import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -53,7 +54,12 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Page<Post> listBySubGroup(Long subGroupId, Pageable pageable) {
+    public Page<Post> listBySubGroup(Long subGroupId, PostSortOption sort, Pageable pageable) {
+        if (sort == PostSortOption.POPULAR) {
+            // Native query kendi ORDER BY'ını taşıyor - Pageable'daki Sort
+            // temizlenmeli (bkz. PostRepository yorumu + SearchQueryUtil).
+            return postRepository.findBySubGroupIdOrderByReactionCountDesc(subGroupId, SearchQueryUtil.stripSort(pageable));
+        }
         return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, pageable);
     }
 

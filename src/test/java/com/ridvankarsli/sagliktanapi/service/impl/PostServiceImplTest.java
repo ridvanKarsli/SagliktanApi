@@ -9,18 +9,23 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -81,5 +86,31 @@ class PostServiceImplTest {
 
         assertEquals("Başlık", result.getTitle());
         verify(postRepository).save(any(Post.class));
+    }
+
+    // Faz 2 adım 1: sort=popular verilince reaksiyon-sayısı sorgusuna,
+    // sort=recent (veya belirtilmeyince) mevcut created_at sorgusuna
+    // gidilmeli - iki dal birbirini asla tetiklememeli.
+    @Test
+    void listBySubGroup_usesReactionCountQuery_whenSortIsPopular() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(postRepository.findBySubGroupIdOrderByReactionCountDesc(eq(SUB_GROUP_ID), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        postService.listBySubGroup(SUB_GROUP_ID, PostSortOption.POPULAR, pageable);
+
+        verify(postRepository).findBySubGroupIdOrderByReactionCountDesc(eq(SUB_GROUP_ID), any(Pageable.class));
+        verify(postRepository, never()).findBySubGroupIdOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
+    void listBySubGroup_usesCreatedAtQuery_whenSortIsRecent() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(postRepository.findBySubGroupIdOrderByCreatedAtDesc(SUB_GROUP_ID, pageable)).thenReturn(Page.empty());
+
+        postService.listBySubGroup(SUB_GROUP_ID, PostSortOption.RECENT, pageable);
+
+        verify(postRepository).findBySubGroupIdOrderByCreatedAtDesc(SUB_GROUP_ID, pageable);
+        verify(postRepository, never()).findBySubGroupIdOrderByReactionCountDesc(any(), any());
     }
 }
