@@ -10,6 +10,7 @@ import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.PostService;
+import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -53,8 +54,21 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Page<Post> listBySubGroup(Long subGroupId, Pageable pageable) {
-        return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, pageable);
+    public Page<Post> listBySubGroup(Long subGroupId, PostSortOption sort, Pageable pageable) {
+        // KÖK NEDEN (canlıda görüldü): Controller'daki ?sort= query
+        // parametresi, Spring'in Pageable argument resolver'ının KENDİ
+        // page/size/sort binding'i ile aynı isimde - "sort=recent" gelince
+        // Spring bunu Pageable.getSort() içine "recent alanına göre sırala"
+        // olarak dolduruyor, bu da derived query'de Post'ta "recent" diye
+        // bir alan aranıp PropertyReferenceException'a yol açıyor.
+        // Sıralamayı tamamen PostSortOption üzerinden biz yönettiğimiz için
+        // Pageable'dan gelen Sort'u HER iki dalda da (sadece popular'da
+        // değil) temizlemek gerekiyor.
+        Pageable safePageable = SearchQueryUtil.stripSort(pageable);
+        if (sort == PostSortOption.POPULAR) {
+            return postRepository.findBySubGroupIdOrderByReactionCountDesc(subGroupId, safePageable);
+        }
+        return postRepository.findBySubGroupIdOrderByCreatedAtDesc(subGroupId, safePageable);
     }
 
     @Override
@@ -69,6 +83,15 @@ public class PostServiceImpl implements PostService {
             return Page.empty(pageable);
         }
         return postRepository.search(query, tsQuery, SearchQueryUtil.stripSort(pageable));
+    }
+
+    @Override
+    public Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable) {
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
+        if (tsQuery == null) {
+            return Page.empty(pageable);
+        }
+        return postRepository.searchBySubGroup(subGroupId, query, tsQuery, SearchQueryUtil.stripSort(pageable));
     }
 
     @Override

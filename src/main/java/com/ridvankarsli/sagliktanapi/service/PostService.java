@@ -10,11 +10,13 @@ public interface PostService {
 
     Post getById(Long id);
 
-    Page<Post> listBySubGroup(Long subGroupId, Pageable pageable);
+    Page<Post> listBySubGroup(Long subGroupId, PostSortOption sort, Pageable pageable);
 
     Page<Post> listByUser(Long userId, Pageable pageable);
 
     Page<Post> search(String query, Pageable pageable);
+
+    Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable);
 
     Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content);
 

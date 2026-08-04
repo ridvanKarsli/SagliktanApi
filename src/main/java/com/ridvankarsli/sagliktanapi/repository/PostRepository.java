@@ -16,6 +16,29 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // postun hiç görünmemesine yol açabilir.
     Page<Post> findBySubGroupIdOrderByCreatedAtDesc(Long subGroupId, Pageable pageable);
 
+    // Faz 2 adım 1: popülerlik sıralaması (?sort=popular). Reaction hedefe
+    // (post/comment) polimorfik (target_type + target_id, FK yok - bkz.
+    // Reaction entity yorumu) bağlandığı için JPQL join kurulamıyor, search()
+    // metodundaki gibi native query gerekiyor. LEFT JOIN sayesinde hiç
+    // reaksiyonu olmayan gönderiler de (0 sayıyla) listede kalıyor; eşit
+    // sayıda created_at DESC ikincil kriter olarak devreye giriyor -
+    // deterministik sayfalama garantisi yukarıdaki OrderByCreatedAtDesc
+    // metoduyla aynı gerekçeyle (ORDER BY olmadan Postgres satır sırası
+    // garanti değil).
+    // DİKKAT: bu native sorgu kendi ORDER BY'ını içeriyor - çağıran taraf
+    // (PostServiceImpl) Pageable'ı SearchQueryUtil.stripSort ile vermeli,
+    // aksi halde search()'te daha önce yaşanan "çift ORDER BY" Postgres
+    // syntax hatası (bkz. SearchQueryUtil javadoc) burada da tekrarlanır.
+    @Query(
+            value = "SELECT p.* FROM posts p " +
+                    "LEFT JOIN reactions r ON r.target_type = 'POST' AND r.target_id = p.id AND r.value = 'HELPFUL' " +
+                    "WHERE p.sub_group_id = :subGroupId " +
+                    "GROUP BY p.id " +
+                    "ORDER BY COUNT(r.id) DESC, p.created_at DESC",
+            countQuery = "SELECT count(*) FROM posts p WHERE p.sub_group_id = :subGroupId",
+            nativeQuery = true)
+    Page<Post> findBySubGroupIdOrderByReactionCountDesc(@Param("subGroupId") Long subGroupId, Pageable pageable);
+
     // Alt grup listesinde gösterilen sohbet (post) sayısı
     long countBySubGroupId(Long subGroupId);
 
@@ -31,17 +54,45 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // Prefix eşleşme (:tsQuery) VE pg_trgm word_similarity ile yazım hatası
     // toleranslı eşleşme (:rawQuery) aynı sorguda OR ile birleşiyor,
     // GREATEST(...) skoruna göre en alakalı sonuç en üstte.
-    @Query(
-            value = "SELECT * FROM posts p WHERE " +
-                    "p.search_vector @@ to_tsquery('turkish', :tsQuery) " +
-                    "OR word_similarity(:rawQuery, p.title || ' ' || p.content) > 0.3 " +
-                    "ORDER BY GREATEST(" +
+    //
+    // SEARCH_MATCH_CONDITION/SEARCH_RELEVANCE_ORDER: search() ile Faz 2
+    // adım 2'de eklenen searchBySubGroup() aynı eşleşme/sıralama mantığını
+    // paylaşıyor (tek fark: ikincisi p.sub_group_id ile filtreliyor). Bu
+    // fragmanı iki sorguda ayrı ayrı yazmak yerine tek yerde tanımlayıp
+    // paylaşmak, biri güncellenince diğerinin unutulmasını (drift) önlüyor.
+    // @Query value'su compile-time sabit olmak zorunda olduğu için bu
+    // alanlar static final String olarak tanımlı.
+    String SEARCH_MATCH_CONDITION =
+            "(p.search_vector @@ to_tsquery('turkish', :tsQuery) " +
+                    "OR word_similarity(:rawQuery, p.title || ' ' || p.content) > 0.3)";
+    String SEARCH_RELEVANCE_ORDER =
+            "GREATEST(" +
                     "    COALESCE(ts_rank(p.search_vector, to_tsquery('turkish', :tsQuery)), 0), " +
                     "    word_similarity(:rawQuery, p.title || ' ' || p.content)" +
-                    ") DESC",
-            countQuery = "SELECT count(*) FROM posts p WHERE " +
-                    "p.search_vector @@ to_tsquery('turkish', :tsQuery) " +
-                    "OR word_similarity(:rawQuery, p.title || ' ' || p.content) > 0.3",
+                    ") DESC";
+
+    @Query(
+            value = "SELECT * FROM posts p WHERE " + SEARCH_MATCH_CONDITION + " ORDER BY " + SEARCH_RELEVANCE_ORDER,
+            countQuery = "SELECT count(*) FROM posts p WHERE " + SEARCH_MATCH_CONDITION,
             nativeQuery = true)
     Page<Post> search(@Param("rawQuery") String rawQuery, @Param("tsQuery") String tsQuery, Pageable pageable);
+
+    // Faz 2 adım 2: "Gönderiler" sayfasındaki alt gruba özel arama kutusu.
+    // search()'ün platform genelindeki halinin aksine sadece tek bir alt
+    // gruptaki gönderilerle sınırlı - ayrı bir endpoint/metot olarak
+    // tutuluyor (search()'e opsiyonel bir subGroupId parametresi eklemek
+    // yerine) çünkü platform geneli arama (bkz. Search.jsx) ve gruba özel
+    // arama iki farklı, birbirinden bağımsız evrilebilecek kullanım
+    // senaryosu - tek metodu boolean/nullable parametreyle dallandırmak
+    // yerine ayrı, tek sorumluluğu net iki metot tercih edildi.
+    @Query(
+            value = "SELECT * FROM posts p WHERE p.sub_group_id = :subGroupId AND " + SEARCH_MATCH_CONDITION
+                    + " ORDER BY " + SEARCH_RELEVANCE_ORDER,
+            countQuery = "SELECT count(*) FROM posts p WHERE p.sub_group_id = :subGroupId AND " + SEARCH_MATCH_CONDITION,
+            nativeQuery = true)
+    Page<Post> searchBySubGroup(
+            @Param("subGroupId") Long subGroupId,
+            @Param("rawQuery") String rawQuery,
+            @Param("tsQuery") String tsQuery,
+            Pageable pageable);
 }
