@@ -43,6 +43,12 @@ Bağımsız, düşük risk.
 - Cloudflare R2 hesabı/bucket kurulumu, presigned URL ile doğrudan
   client → R2 upload akışı (dosya backend üzerinden geçmiyor, sadece
   backend imzalı bir yükleme linki üretiyor).
+- **Sıkıştırma:** yükleme öncesi, tarayıcıda (client-side) fotoğraf
+  otomatik olarak yeniden boyutlandırılıp kalitesi hafif düşürülecek
+  (örn. en uzun kenar ~1920px'e sınırlanır, JPEG/WebP kalitesi ~%75-80'e
+  ayarlanır). Hem depolama maliyetini hem yükleme/gösterim süresini
+  düşürür, backend'e ekstra iş bindirmez (görsel işleme sunucuda değil
+  tarayıcıda yapılır).
 - Backend: `Attachment`/`Media` entity, post'a bağlanması, boyut/tip
   kısıtları (sadece resim: jpg/png/webp, makul bir üst boyut sınırı).
 - Frontend: gönderi oluşturma formuna fotoğraf ekleme, önizleme, post
