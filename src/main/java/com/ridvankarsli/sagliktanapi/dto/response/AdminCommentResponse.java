@@ -18,7 +18,7 @@ public record AdminCommentResponse(
                 comment.getId(),
                 comment.getPost().getId(),
                 comment.getUser().getId(),
-                comment.getUser().getFirstName() + " " + comment.getUser().getLastName(),
+                comment.getUser().getFullName(),
                 comment.getContent(),
                 comment.isDeleted(),
                 comment.getCreatedAt()

@@ -80,6 +80,18 @@ public class AuthServiceImpl implements AuthService {
         LocalDateTime codeExpiresAt = LocalDateTime.now().plus(VERIFICATION_CODE_TTL);
         String passwordHash = passwordEncoder.encode(rawPassword);
 
+        User user = findOrPrepareUser(email, passwordHash, firstName, lastName, code, codeExpiresAt);
+        return finalizeRegistration(user, code);
+    }
+
+    // Var olan (doğrulanmamış) bir kayıt mı güncelleniyor yoksa yeni bir User
+    // mı inşa ediliyor - henüz kaydedilmemiş bir User döner (bkz. register,
+    // clean-code audit: tek metotta hem bul/inşa et hem kaydet/bildir mantığı
+    // ayrıştırıldı).
+    private User findOrPrepareUser(
+            String email, String passwordHash, String firstName, String lastName,
+            String code, LocalDateTime codeExpiresAt
+    ) {
         User user = userRepository.findByEmail(email).orElse(null);
 
         if (user != null) {
@@ -97,22 +109,27 @@ public class AuthServiceImpl implements AuthService {
             user.setVerificationCode(code);
             user.setVerificationCodeExpiresAt(codeExpiresAt);
             user.setKvkkConsentAt(LocalDateTime.now());
-        } else {
-            boolean grantTestAdmin = !autoAdminEmailPrefix.isBlank() && email.startsWith(autoAdminEmailPrefix);
-            user = User.builder()
-                    .email(email)
-                    .passwordHash(passwordHash)
-                    .firstName(firstName)
-                    .lastName(lastName)
-                    .role(grantTestAdmin ? Role.ADMIN : Role.USER)
-                    .emailVerified(false)
-                    .verificationCode(code)
-                    .verificationCodeExpiresAt(codeExpiresAt)
-                    .active(true)
-                    .kvkkConsentAt(LocalDateTime.now())
-                    .build();
+            return user;
         }
 
+        boolean grantTestAdmin = !autoAdminEmailPrefix.isBlank() && email.startsWith(autoAdminEmailPrefix);
+        return User.builder()
+                .email(email)
+                .passwordHash(passwordHash)
+                .firstName(firstName)
+                .lastName(lastName)
+                .role(grantTestAdmin ? Role.ADMIN : Role.USER)
+                .emailVerified(false)
+                .verificationCode(code)
+                .verificationCodeExpiresAt(codeExpiresAt)
+                .active(true)
+                .kvkkConsentAt(LocalDateTime.now())
+                .build();
+    }
+
+    // Kaydeder, sonra (test ortamındaysa) otomatik doğrular ya da gerçek
+    // doğrulama e-postasını gönderir.
+    private User finalizeRegistration(User user, String code) {
         user = userRepository.save(user);
 
         if (autoVerifyEmail) {

@@ -4,7 +4,6 @@ import com.ridvankarsli.sagliktanapi.domain.Post;
 import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
-import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.PostRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReactionRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
@@ -16,6 +15,7 @@ import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.ContentReportService;
 import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
 import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
+import com.ridvankarsli.sagliktanapi.service.PostResponseAssembler;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
@@ -38,8 +38,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @RestController
 @RequiredArgsConstructor
@@ -51,6 +49,7 @@ public class PostController {
     private final SavedPostService savedPostService;
     private final PostAttachmentService postAttachmentService;
     private final MediaStorageService mediaStorageService;
+    private final PostResponseAssembler postResponseAssembler;
 
     @PostMapping("/api/sub-groups/{subGroupId}/posts")
     @ResponseStatus(HttpStatus.CREATED)
@@ -81,7 +80,7 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.listBySubGroup(subGroupId, PostSortOption.fromParam(sort), pageable);
-        return toPageResponse(page, principal);
+        return postResponseAssembler.assemble(page, principal.getId());
     }
 
     // Rapor 4.5: PostgreSQL Full-Text Search (platform geneli)
@@ -90,7 +89,7 @@ public class PostController {
             @RequestParam String q, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.search(q, pageable);
-        return toPageResponse(page, principal);
+        return postResponseAssembler.assemble(page, principal.getId());
     }
 
     // Faz 2 adım 2: "Gönderiler" sayfasındaki alt gruba özel arama kutusu.
@@ -105,13 +104,13 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Post> page = postService.searchBySubGroup(subGroupId, q, pageable);
-        return toPageResponse(page, principal);
+        return postResponseAssembler.assemble(page, principal.getId());
     }
 
     @GetMapping("/api/posts/{id}")
     public PostResponse getById(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         Post post = postService.getById(id);
-        return toPostResponse(post, principal);
+        return postResponseAssembler.assembleOne(post, principal.getId());
     }
 
     @PutMapping("/api/posts/{id}")
@@ -120,9 +119,9 @@ public class PostController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @Valid @RequestBody PostRequest request
     ) {
-        boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
+        boolean isAdmin = principal.isAdmin();
         Post post = postService.update(id, principal.getId(), isAdmin, request.title(), request.content());
-        return toPostResponse(post, principal);
+        return postResponseAssembler.assembleOne(post, principal.getId());
     }
 
     // Faz 2 adım 3: gönderiyi kaydet/kaydı kaldır (yıldızlama). Reaksiyon
@@ -143,7 +142,7 @@ public class PostController {
 
     @DeleteMapping("/api/posts/{id}")
     public void delete(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
-        boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
+        boolean isAdmin = principal.isAdmin();
         postService.delete(id, principal.getId(), isAdmin);
     }
 
@@ -173,32 +172,6 @@ public class PostController {
     public ReactionSummary removeReaction(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         reactionService.removeReaction(ReactionTargetType.POST, id, principal.getId());
         return reactionService.getSummary(ReactionTargetType.POST, id, principal.getId());
-    }
-
-    // Sayfalanmış bir Post listesini, reaksiyon + kaydetme durumunu/sayısını
-    // ve fotoğrafları toplu (N+1 sorgu değil) çekip PostResponse'a çeviren
-    // ortak yol - listBySubGroup/search/searchBySubGroup arasında tekrar
-    // etmesin diye tek yerde.
-    private PageResponse<PostResponse> toPageResponse(Page<Post> page, CustomUserDetails principal) {
-        List<Post> posts = page.getContent();
-        List<Long> ids = posts.stream().map(Post::getId).toList();
-        Map<Long, ReactionSummary> reactions = reactionService.getSummaries(ReactionTargetType.POST, ids, principal.getId());
-        Set<Long> savedIds = savedPostService.findSavedPostIds(principal.getId(), ids);
-        Map<Long, Long> savedCounts = savedPostService.countByPostIds(ids);
-        Map<Long, List<PostAttachment>> attachmentsByPost = postAttachmentService.findByPostIds(ids);
-        return PageResponse.from(page.map(post ->
-                PostResponse.from(post, reactions.get(post.getId()), savedIds.contains(post.getId()),
-                        savedCounts.get(post.getId()),
-                        toAttachmentResponses(attachmentsByPost.getOrDefault(post.getId(), List.of())))));
-    }
-
-    // Tek bir Post için (getById/update) aynı zenginleştirme.
-    private PostResponse toPostResponse(Post post, CustomUserDetails principal) {
-        ReactionSummary reactions = reactionService.getSummary(ReactionTargetType.POST, post.getId(), principal.getId());
-        boolean saved = savedPostService.isSaved(principal.getId(), post.getId());
-        long savedCount = savedPostService.countByPostIds(List.of(post.getId())).getOrDefault(post.getId(), 0L);
-        List<PostAttachmentResponse> attachments = toAttachmentResponses(postAttachmentService.findByPostId(post.getId()));
-        return PostResponse.from(post, reactions, saved, savedCount, attachments);
     }
 
     private List<PostAttachmentResponse> toAttachmentResponses(List<PostAttachment> attachments) {

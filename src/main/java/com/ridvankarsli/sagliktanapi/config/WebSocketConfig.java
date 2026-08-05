@@ -1,6 +1,7 @@
 package com.ridvankarsli.sagliktanapi.config;
 
 import com.ridvankarsli.sagliktanapi.security.JwtHandshakeChannelInterceptor;
+import com.ridvankarsli.sagliktanapi.util.CorsOrigins;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -9,8 +10,6 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-
-import java.util.Arrays;
 
 // Gerçek zamanlı bildirimler için STOMP over WebSocket. JWT doğrulaması
 // burada değil, JwtHandshakeChannelInterceptor'da (CONNECT frame'inde)
@@ -30,10 +29,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        String[] origins = Arrays.stream(allowedOriginsRaw.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isBlank())
-                .toArray(String[]::new);
+        String[] origins = CorsOrigins.parse(allowedOriginsRaw).toArray(String[]::new);
         registry.addEndpoint("/ws").setAllowedOrigins(origins);
     }
 

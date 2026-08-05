@@ -18,9 +18,9 @@ public record MessageRequestResponse(
         return new MessageRequestResponse(
                 r.getId(),
                 r.getSender().getId(),
-                r.getSender().getFirstName() + " " + r.getSender().getLastName(),
+                r.getSender().getFullName(),
                 r.getRecipient().getId(),
-                r.getRecipient().getFirstName() + " " + r.getRecipient().getLastName(),
+                r.getRecipient().getFullName(),
                 r.getStatus(),
                 r.getCreatedAt()
         );

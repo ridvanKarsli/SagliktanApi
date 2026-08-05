@@ -2,21 +2,16 @@ package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Comment;
 import com.ridvankarsli.sagliktanapi.domain.Post;
-import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.dto.response.CommentResponse;
-import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
-import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.SearchResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
-import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
-import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
+import com.ridvankarsli.sagliktanapi.service.PostResponseAssembler;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.ReactionService;
 import com.ridvankarsli.sagliktanapi.service.ReactionSummary;
-import com.ridvankarsli.sagliktanapi.service.SavedPostService;
 import com.ridvankarsli.sagliktanapi.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -28,7 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 // Twitter/arama çubuğu tarzı birleşik "hızlı arama": tek istekte post,
 // yorum ve kişi sonuçlarından en alakalı ilk birkaçını bir arada döner.
@@ -44,9 +38,7 @@ public class SearchController {
     private final CommentService commentService;
     private final UserService userService;
     private final ReactionService reactionService;
-    private final SavedPostService savedPostService;
-    private final PostAttachmentService postAttachmentService;
-    private final MediaStorageService mediaStorageService;
+    private final PostResponseAssembler postResponseAssembler;
 
     @GetMapping("/api/search")
     public SearchResponse search(@RequestParam String q, @AuthenticationPrincipal CustomUserDetails principal) {
@@ -57,18 +49,7 @@ public class SearchController {
         Pageable topResults = PageRequest.of(0, QUICK_SEARCH_LIMIT);
 
         List<Post> postResults = postService.search(q, topResults).getContent();
-        List<Long> postIds = postResults.stream().map(Post::getId).toList();
-        Map<Long, ReactionSummary> postReactions = reactionService.getSummaries(ReactionTargetType.POST, postIds, principal.getId());
-        Set<Long> savedPostIds = savedPostService.findSavedPostIds(principal.getId(), postIds);
-        Map<Long, Long> savedPostCounts = savedPostService.countByPostIds(postIds);
-        Map<Long, List<PostAttachment>> postAttachments = postAttachmentService.findByPostIds(postIds);
-        var posts = postResults.stream()
-                .map(p -> PostResponse.from(p, postReactions.get(p.getId()), savedPostIds.contains(p.getId()),
-                        savedPostCounts.get(p.getId()),
-                        postAttachments.getOrDefault(p.getId(), List.of()).stream()
-                                .map(a -> PostAttachmentResponse.from(a, mediaStorageService))
-                                .toList()))
-                .toList();
+        var posts = postResponseAssembler.assemble(postResults, principal.getId());
 
         List<Comment> commentResults = commentService.search(q, topResults).getContent();
         Map<Long, ReactionSummary> commentReactions = reactionService.getSummaries(

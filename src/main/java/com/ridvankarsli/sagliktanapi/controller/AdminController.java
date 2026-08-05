@@ -49,8 +49,7 @@ public class AdminController {
 
     private final AdminService adminService;
     // Fotoğrafları toplu (N+1 sorgu değil) çekip admin listesine
-    // zenginleştirmek için - bkz. PostController.toPageResponse'daki aynı
-    // desen.
+    // zenginleştirmek için - bkz. PostResponseAssembler'daki aynı desen.
     private final PostAttachmentService postAttachmentService;
     private final MediaStorageService mediaStorageService;
 

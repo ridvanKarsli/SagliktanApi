@@ -27,7 +27,7 @@ public record AdminPostResponse(
                 post.getSubGroup().getId(),
                 post.getSubGroup().getDiseaseGroup().getId(),
                 post.getUser().getId(),
-                post.getUser().getFirstName() + " " + post.getUser().getLastName(),
+                post.getUser().getFullName(),
                 post.getTitle(),
                 post.getContent(),
                 attachments,

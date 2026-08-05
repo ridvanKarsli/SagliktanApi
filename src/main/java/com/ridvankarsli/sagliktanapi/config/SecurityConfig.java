@@ -5,6 +5,7 @@ import com.ridvankarsli.sagliktanapi.security.JwtAuthenticationFilter;
 import com.ridvankarsli.sagliktanapi.security.RateLimitFilter;
 import com.ridvankarsli.sagliktanapi.security.RestAccessDeniedHandler;
 import com.ridvankarsli.sagliktanapi.security.RestAuthenticationEntryPoint;
+import com.ridvankarsli.sagliktanapi.util.CorsOrigins;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +27,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 
 // Rapor adım 5: Spring Security temel konfigürasyonu + JWT filter zinciri.
@@ -88,12 +88,10 @@ public class SecurityConfig {
 
     // WebSocketConfig da ayni ALLOWED_ORIGINS degerini kullaniyor (orada
     // ayri enjekte ediliyor - Spring CORS filter'indan tamamen farkli bir
-    // mekanizma oldugu icin bean paylasimi yapilamiyor).
+    // mekanizma oldugu icin bean paylasimi yapilamiyor, ama parse mantigi
+    // CorsOrigins.parse'ta ortak).
     List<String> parseAllowedOrigins() {
-        return Arrays.stream(allowedOriginsRaw.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isBlank())
-                .toList();
+        return CorsOrigins.parse(allowedOriginsRaw);
     }
 
     @Bean

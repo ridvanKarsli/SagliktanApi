@@ -150,7 +150,7 @@ public class AdminServiceImpl implements AdminService {
                             report,
                             truncate(p.getTitle() + " — " + p.getContent()),
                             p.getUser().getId(),
-                            p.getUser().getFirstName() + " " + p.getUser().getLastName()
+                            p.getUser().getFullName()
                     ))
                     .orElseGet(() -> new AdminReportItem(report, "[Gönderi silinmiş]", null, null));
             case COMMENT -> commentRepository.findById(report.getTargetId())
@@ -158,7 +158,7 @@ public class AdminServiceImpl implements AdminService {
                             report,
                             truncate(c.getContent()),
                             c.getUser().getId(),
-                            c.getUser().getFirstName() + " " + c.getUser().getLastName()
+                            c.getUser().getFullName()
                     ))
                     .orElseGet(() -> new AdminReportItem(report, "[Yorum silinmiş]", null, null));
             case MESSAGE -> messageRepository.findById(report.getTargetId())
@@ -166,7 +166,7 @@ public class AdminServiceImpl implements AdminService {
                             report,
                             truncate(m.getContent() != null ? m.getContent() : "[Fotoğraf]"),
                             m.getSender().getId(),
-                            m.getSender().getFirstName() + " " + m.getSender().getLastName()
+                            m.getSender().getFullName()
                     ))
                     .orElseGet(() -> new AdminReportItem(report, "[Mesaj silinmiş]", null, null));
         };

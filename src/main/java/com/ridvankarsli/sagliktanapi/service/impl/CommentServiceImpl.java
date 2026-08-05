@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ public class CommentServiceImpl implements CommentService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final UserDiseaseGroupRepository userDiseaseGroupRepository;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional
@@ -91,7 +93,7 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public Comment update(Long commentId, Long requesterId, boolean requesterIsAdmin, String content) {
         Comment comment = getById(commentId);
-        assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
+        ownershipGuard.assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
         if (comment.isDeleted()) {
             throw new BadRequestException("Silinmiş bir yorum düzenlenemez");
         }
@@ -103,7 +105,7 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public void delete(Long commentId, Long requesterId, boolean requesterIsAdmin) {
         Comment comment = getById(commentId);
-        assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
+        ownershipGuard.assertOwnerOrAdmin(comment.getUser().getId(), requesterId, requesterIsAdmin);
         if (comment.isDeleted()) {
             throw new BadRequestException("Bu yorum zaten silinmiş");
         }
@@ -114,15 +116,6 @@ public class CommentServiceImpl implements CommentService {
     private Comment getById(Long id) {
         return commentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Yorum bulunamadı"));
-    }
-
-    private void assertOwnerOrAdmin(Long ownerId, Long requesterId, boolean requesterIsAdmin) {
-        if (requesterIsAdmin) {
-            return;
-        }
-        if (!ownerId.equals(requesterId)) {
-            throw new ForbiddenException("Bu işlem için yetkiniz yok");
-        }
     }
 
     // Kullanıcı, yorum yapacağı gönderinin bağlı olduğu hastalık grubuna üye

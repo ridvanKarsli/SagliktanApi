@@ -33,7 +33,7 @@ public record ConversationResponse(
         return new ConversationResponse(
                 conversation.getId(),
                 otherUser.getId(),
-                otherUser.getFirstName() + " " + otherUser.getLastName(),
+                otherUser.getFullName(),
                 lastMessage != null ? lastMessage.getContent() : null,
                 lastMessage != null && lastMessage.getAttachmentKey() != null,
                 lastMessage != null && lastMessage.getSharedPost() != null,

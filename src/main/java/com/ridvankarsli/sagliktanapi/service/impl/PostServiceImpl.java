@@ -9,6 +9,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
@@ -36,6 +37,7 @@ public class PostServiceImpl implements PostService {
     // doğrulaması burada, aynı @Transactional sınırı içinde yapılıyor ki
     // geçersiz bir fotoğraf referansı TÜM post oluşturmayı geri alsın.
     private final PostAttachmentService postAttachmentService;
+    private final OwnershipGuard ownershipGuard;
 
     @Override
     @Transactional
@@ -124,7 +126,7 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content) {
         Post post = getById(postId);
-        assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
+        ownershipGuard.assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
 
         post.setTitle(title);
         post.setContent(content);
@@ -135,7 +137,7 @@ public class PostServiceImpl implements PostService {
     @Transactional
     public void delete(Long postId, Long requesterId, boolean requesterIsAdmin) {
         Post post = getById(postId);
-        assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
+        ownershipGuard.assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
         // post_attachments.post_id zaten ON DELETE CASCADE (bkz. V14
         // migration), ama R2'deki gerçek dosyalar DB cascade'inin
         // kapsamı dışında - onları açıkça silmezsek sonsuza kadar orphan
@@ -143,17 +145,6 @@ public class PostServiceImpl implements PostService {
         // key'leri hâlâ okunabilirken temizleniyor.
         postAttachmentService.deleteAllForPost(postId);
         postRepository.delete(post);
-    }
-
-    // Rapor 5.3: "kendi" kaydı üzerindeki işlemler için sahiplik kontrolü
-    // service katmanında yapılmalı, sadece role bazlı kontrol yeterli değil.
-    private void assertOwnerOrAdmin(Long ownerId, Long requesterId, boolean requesterIsAdmin) {
-        if (requesterIsAdmin) {
-            return;
-        }
-        if (!ownerId.equals(requesterId)) {
-            throw new ForbiddenException("Bu işlem için yetkiniz yok");
-        }
     }
 
     // Kullanıcı, gönderi paylaşacağı alt grubun bağlı olduğu hastalık grubuna

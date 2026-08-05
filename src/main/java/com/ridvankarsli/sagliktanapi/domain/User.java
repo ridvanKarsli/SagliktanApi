@@ -100,4 +100,11 @@ public class User {
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     @Builder.Default
     private Set<Comment> comments = new HashSet<>();
+
+    // DTO'larda ~14 yerde tekrarlanan "firstName + \" \" + lastName" birleştirmesi
+    // için tek yer (bkz. clean-code audit) - domain modeli görüntü adını
+    // kendisi bilir, her response sınıfı bunu yeniden hesaplamamalı.
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
 }

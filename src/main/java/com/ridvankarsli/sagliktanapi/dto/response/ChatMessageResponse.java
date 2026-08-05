@@ -67,7 +67,7 @@ public record ChatMessageResponse(
                 post.getSubGroup().getId(),
                 post.getTitle(),
                 snippet,
-                post.getUser().getFirstName() + " " + post.getUser().getLastName(),
+                post.getUser().getFullName(),
                 thumbnailUrl
         );
     }

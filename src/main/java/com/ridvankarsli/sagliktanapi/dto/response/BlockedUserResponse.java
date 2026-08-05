@@ -9,7 +9,7 @@ public record BlockedUserResponse(Long id, Long userId, String userName, LocalDa
         return new BlockedUserResponse(
                 b.getId(),
                 b.getBlocked().getId(),
-                b.getBlocked().getFirstName() + " " + b.getBlocked().getLastName(),
+                b.getBlocked().getFullName(),
                 b.getCreatedAt()
         );
     }

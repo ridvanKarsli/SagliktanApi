@@ -34,11 +34,11 @@ public record AdminReportResponse(
                 item.targetOwnerId(),
                 item.targetOwnerName(),
                 r.getReporter().getId(),
-                r.getReporter().getFirstName() + " " + r.getReporter().getLastName(),
+                r.getReporter().getFullName(),
                 r.getReason(),
                 r.getStatus(),
                 r.getResolvedBy() != null ? r.getResolvedBy().getId() : null,
-                r.getResolvedBy() != null ? r.getResolvedBy().getFirstName() + " " + r.getResolvedBy().getLastName() : null,
+                r.getResolvedBy() != null ? r.getResolvedBy().getFullName() : null,
                 r.getResolvedAt(),
                 r.getCreatedAt()
         );

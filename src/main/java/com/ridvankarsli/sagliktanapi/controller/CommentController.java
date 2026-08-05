@@ -3,7 +3,6 @@ package com.ridvankarsli.sagliktanapi.controller;
 import com.ridvankarsli.sagliktanapi.domain.Comment;
 import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
-import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.CommentRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReactionRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
@@ -65,16 +64,7 @@ public class CommentController {
             @PathVariable Long postId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Comment> topLevelPage = commentService.listByPost(postId, pageable);
-        List<Long> ids = topLevelPage.getContent().stream().map(Comment::getId).toList();
-        Map<Long, ReactionSummary> reactions =
-                reactionService.getSummaries(ReactionTargetType.COMMENT, ids, principal.getId());
-        Map<Long, Long> replyCounts = commentService.countReplies(ids);
-
-        return PageResponse.from(topLevelPage.map(comment -> CommentResponse.from(
-                comment,
-                reactions.getOrDefault(comment.getId(), ReactionSummary.empty()),
-                replyCounts.getOrDefault(comment.getId(), 0L)
-        )));
+        return toCommentPageResponse(topLevelPage, principal.getId());
     }
 
     // Bir yorumun DOĞRUDAN yanıtlarını sayfalı döner (thread-drill: X/Twitter
@@ -87,16 +77,7 @@ public class CommentController {
             @PathVariable Long commentId, Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal
     ) {
         Page<Comment> page = commentService.listReplies(commentId, pageable);
-        List<Long> ids = page.getContent().stream().map(Comment::getId).toList();
-        Map<Long, ReactionSummary> reactions =
-                reactionService.getSummaries(ReactionTargetType.COMMENT, ids, principal.getId());
-        Map<Long, Long> replyCounts = commentService.countReplies(ids);
-
-        return PageResponse.from(page.map(comment -> CommentResponse.from(
-                comment,
-                reactions.getOrDefault(comment.getId(), ReactionSummary.empty()),
-                replyCounts.getOrDefault(comment.getId(), 0L)
-        )));
+        return toCommentPageResponse(page, principal.getId());
     }
 
     // Gelişmiş arama: yorum içeriğinde tam metin arama (bkz. V7 migration).
@@ -110,6 +91,9 @@ public class CommentController {
         List<Long> ids = page.getContent().stream().map(Comment::getId).toList();
         Map<Long, ReactionSummary> reactions =
                 reactionService.getSummaries(ReactionTargetType.COMMENT, ids, principal.getId());
+        // replyCount kasıtlı olarak set edilmiyor (2 parametreli from() varsayılan
+        // 0 döner) - arama sonuçları yorum ağacı derinliğini göstermiyor, amaç
+        // ilgili posta gitmek, thread-drill değil (bkz. listByPost/listReplies).
         return PageResponse.from(page.map(comment -> CommentResponse.from(comment, reactions.get(comment.getId()))));
     }
 
@@ -119,14 +103,14 @@ public class CommentController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @Valid @RequestBody CommentRequest request
     ) {
-        boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
+        boolean isAdmin = principal.isAdmin();
         Comment comment = commentService.update(id, principal.getId(), isAdmin, request.content());
         return CommentResponse.from(comment, reactionService.getSummary(ReactionTargetType.COMMENT, id, principal.getId()));
     }
 
     @DeleteMapping("/api/comments/{id}")
     public void delete(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
-        boolean isAdmin = principal.getUser().getRole() == Role.ADMIN;
+        boolean isAdmin = principal.isAdmin();
         commentService.delete(id, principal.getId(), isAdmin);
     }
 
@@ -155,5 +139,21 @@ public class CommentController {
     public ReactionSummary removeReaction(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         reactionService.removeReaction(ReactionTargetType.COMMENT, id, principal.getId());
         return reactionService.getSummary(ReactionTargetType.COMMENT, id, principal.getId());
+    }
+
+    // listByPost/listReplies arasında tekrar eden zenginleştirme - reaksiyon
+    // özeti + doğrudan yanıt sayısını toplu (N+1 değil) çekip CommentResponse'a
+    // çevirir (bkz. clean-code audit).
+    private PageResponse<CommentResponse> toCommentPageResponse(Page<Comment> page, Long viewerId) {
+        List<Long> ids = page.getContent().stream().map(Comment::getId).toList();
+        Map<Long, ReactionSummary> reactions =
+                reactionService.getSummaries(ReactionTargetType.COMMENT, ids, viewerId);
+        Map<Long, Long> replyCounts = commentService.countReplies(ids);
+
+        return PageResponse.from(page.map(comment -> CommentResponse.from(
+                comment,
+                reactions.getOrDefault(comment.getId(), ReactionSummary.empty()),
+                replyCounts.getOrDefault(comment.getId(), 0L)
+        )));
     }
 }

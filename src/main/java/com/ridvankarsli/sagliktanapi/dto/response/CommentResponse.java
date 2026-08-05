@@ -44,7 +44,7 @@ public record CommentResponse(
                 comment.getId(),
                 comment.getPost().getId(),
                 comment.getUser().getId(),
-                comment.getUser().getFirstName() + " " + comment.getUser().getLastName(),
+                comment.getUser().getFullName(),
                 comment.isDeleted() ? DELETED_PLACEHOLDER : comment.getContent(),
                 comment.isDeleted(),
                 comment.getParentComment() != null ? comment.getParentComment().getId() : null,

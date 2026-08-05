@@ -20,7 +20,7 @@ public record NotificationResponse(
                 n.getId(),
                 n.getType(),
                 n.getActor().getId(),
-                n.getActor().getFirstName() + " " + n.getActor().getLastName(),
+                n.getActor().getFullName(),
                 n.getPostId(),
                 n.getCommentId(),
                 n.isRead(),

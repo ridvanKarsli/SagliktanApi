@@ -1,5 +1,6 @@
 package com.ridvankarsli.sagliktanapi.security;
 
+import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.domain.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,6 +26,13 @@ public class CustomUserDetails implements UserDetails {
 
     public Long getId() {
         return user.getId();
+    }
+
+    // Controller'larda 4 yerde tekrarlanan "principal.getUser().getRole() ==
+    // Role.ADMIN" kontrolü için (bkz. clean-code audit) - Role enum'ını
+    // controller'lardan gizler, DIP'i biraz daha sıkılaştırır.
+    public boolean isAdmin() {
+        return user.getRole() == Role.ADMIN;
     }
 
     @Override
