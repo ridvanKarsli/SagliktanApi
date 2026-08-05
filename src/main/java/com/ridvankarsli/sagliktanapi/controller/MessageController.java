@@ -24,6 +24,7 @@ import com.ridvankarsli.sagliktanapi.service.ConversationService;
 import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
 import com.ridvankarsli.sagliktanapi.service.MessageRequestService;
 import com.ridvankarsli.sagliktanapi.service.MessageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -64,6 +65,9 @@ public class MessageController {
     // MessageService'in genel sözleşmesine (tek konuşma bazlı) eklemek
     // yerine burada, sadece bu listeleme senaryosunda kullanılıyor.
     private final MessageRepository messageRepository;
+    // Faz 2 adım 7: paylaşılan gönderi önizlemesinde ilk fotoğrafı göstermek
+    // için (bkz. ChatMessageResponse.buildSharedPostPreview).
+    private final PostAttachmentService postAttachmentService;
 
     // --- Mesaj istekleri ---
 
@@ -191,15 +195,15 @@ public class MessageController {
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<Message> page = messageService.list(id, principal.getId(), pageable);
-        return PageResponse.from(page.map(m -> ChatMessageResponse.from(m, mediaStorageService)));
+        return PageResponse.from(page.map(m -> ChatMessageResponse.from(m, mediaStorageService, postAttachmentService)));
     }
 
     @PostMapping("/conversations/{id}/messages")
     public ChatMessageResponse sendMessage(
             @PathVariable Long id, @RequestBody SendMessageRequest body, @AuthenticationPrincipal CustomUserDetails principal
     ) {
-        Message message = messageService.send(id, principal.getId(), body.content(), body.attachmentKey());
-        return ChatMessageResponse.from(message, mediaStorageService);
+        Message message = messageService.send(id, principal.getId(), body.content(), body.attachmentKey(), body.sharedPostId());
+        return ChatMessageResponse.from(message, mediaStorageService, postAttachmentService);
     }
 
     @PutMapping("/conversations/{id}/read")

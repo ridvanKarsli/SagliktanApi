@@ -51,6 +51,14 @@ public class Message {
     @Column(name = "attachment_key", length = 512)
     private String attachmentKey;
 
+    // Faz 2 adım 7: gönderiyi mesaj olarak paylaşma. Post silinirse
+    // ON DELETE SET NULL (bkz. V16 migration) - mesaj satırı kalır, sadece
+    // referansı düşer; ChatMessageResponse bunu "gönderi silinmiş" olarak
+    // yorumlar.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shared_post_id")
+    private Post sharedPost;
+
     @Column(name = "read_at")
     private LocalDateTime readAt;
 

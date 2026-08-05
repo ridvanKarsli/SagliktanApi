@@ -2,15 +2,18 @@ package com.ridvankarsli.sagliktanapi.service.impl;
 
 import com.ridvankarsli.sagliktanapi.domain.Conversation;
 import com.ridvankarsli.sagliktanapi.domain.Message;
+import com.ridvankarsli.sagliktanapi.domain.Post;
 import com.ridvankarsli.sagliktanapi.domain.User;
 import com.ridvankarsli.sagliktanapi.dto.response.ChatMessageResponse;
 import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.MessageRepository;
+import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.service.BlockService;
 import com.ridvankarsli.sagliktanapi.service.ConversationService;
 import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
 import com.ridvankarsli.sagliktanapi.service.MessageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.util.MediaConstraints;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,14 +34,17 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationService conversationService;
     private final BlockService blockService;
     private final MediaStorageService mediaStorageService;
+    private final PostRepository postRepository;
+    private final PostAttachmentService postAttachmentService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
-    public Message send(Long conversationId, Long senderId, String content, String attachmentKey) {
+    public Message send(Long conversationId, Long senderId, String content, String attachmentKey, Long sharedPostId) {
         boolean hasContent = content != null && !content.isBlank();
         boolean hasAttachment = attachmentKey != null && !attachmentKey.isBlank();
-        if (!hasContent && !hasAttachment) {
+        boolean hasSharedPost = sharedPostId != null;
+        if (!hasContent && !hasAttachment && !hasSharedPost) {
             throw new BadRequestException("Mesaj boş olamaz");
         }
 
@@ -55,6 +61,15 @@ public class MessageServiceImpl implements MessageService {
             validateAttachment(attachmentKey);
         }
 
+        // Gruba üye olmayanlar da gönderileri görebiliyor (bkz.
+        // PostController - üyelik sadece yorum yapmayı kısıtlıyor), bu
+        // yüzden burada ek bir grup üyeliği kontrolü yok - sadece postun
+        // hâlâ var olduğu doğrulanıyor.
+        Post sharedPost = hasSharedPost
+                ? postRepository.findById(sharedPostId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Gönderi bulunamadı"))
+                : null;
+
         User sender = conversation.getUserOne().getId().equals(senderId)
                 ? conversation.getUserOne()
                 : conversation.getUserTwo();
@@ -64,6 +79,7 @@ public class MessageServiceImpl implements MessageService {
                 .sender(sender)
                 .content(hasContent ? content : null)
                 .attachmentKey(hasAttachment ? attachmentKey : null)
+                .sharedPost(sharedPost)
                 .build());
 
         pushNewMessage(message, other);
@@ -128,7 +144,7 @@ public class MessageServiceImpl implements MessageService {
             messagingTemplate.convertAndSendToUser(
                     recipient.getEmail(),
                     "/queue/messages",
-                    ChatMessageResponse.from(message, mediaStorageService));
+                    ChatMessageResponse.from(message, mediaStorageService, postAttachmentService));
         } catch (RuntimeException e) {
             log.error("Mesaj WS push başarısız: recipient={}, messageId={}",
                     recipient.getEmail(), message.getId(), e);

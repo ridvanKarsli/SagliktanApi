@@ -16,6 +16,10 @@ public record ConversationResponse(
         String otherUserName,
         String lastMessagePreview,
         boolean lastMessageHasAttachment,
+        // Faz 2 adım 7: son mesaj bir gönderi paylaşımıysa (metin/fotoğraf
+        // içermeyen, sadece sharedPost'lu bir mesajsa) sohbet listesinde
+        // boş önizleme yerine bunu göstermek için (bkz. Conversations.jsx).
+        boolean lastMessageHasSharedPost,
         LocalDateTime lastMessageAt,
         long unreadCount,
         // İki yönde de engel yoksa true. Kimin kimi engellediğini AYIRT
@@ -32,6 +36,7 @@ public record ConversationResponse(
                 otherUser.getFirstName() + " " + otherUser.getLastName(),
                 lastMessage != null ? lastMessage.getContent() : null,
                 lastMessage != null && lastMessage.getAttachmentKey() != null,
+                lastMessage != null && lastMessage.getSharedPost() != null,
                 lastMessage != null ? lastMessage.getCreatedAt() : conversation.getCreatedAt(),
                 unreadCount,
                 canMessage

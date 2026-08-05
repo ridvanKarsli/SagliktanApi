@@ -10,9 +10,9 @@ import org.springframework.data.domain.Pageable;
 public interface MessageService {
 
     // conversationId'nin senderId'nin gerçekten tarafı olduğu, karşı tarafın
-    // engellenmediği ve content/attachmentKey'den en az birinin dolu olduğu
-    // burada doğrulanır.
-    Message send(Long conversationId, Long senderId, String content, String attachmentKey);
+    // engellenmediği ve content/attachmentKey/sharedPostId üçlüsünden en az
+    // birinin dolu olduğu burada doğrulanır.
+    Message send(Long conversationId, Long senderId, String content, String attachmentKey, Long sharedPostId);
 
     Page<Message> list(Long conversationId, Long requesterId, Pageable pageable);
 
