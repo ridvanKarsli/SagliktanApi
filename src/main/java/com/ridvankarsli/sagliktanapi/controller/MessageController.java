@@ -170,6 +170,12 @@ public class MessageController {
         }));
     }
 
+    // Nav rozeti: tüm konuşmalardaki toplam okunmamış mesaj sayısı.
+    @GetMapping("/unread-count")
+    public UnreadCountResponse countUnreadMessages(@AuthenticationPrincipal CustomUserDetails principal) {
+        return new UnreadCountResponse(messageService.countUnread(principal.getId()));
+    }
+
     @GetMapping("/conversations/{id}/messages")
     public PageResponse<ChatMessageResponse> listMessages(
             @PathVariable Long id,

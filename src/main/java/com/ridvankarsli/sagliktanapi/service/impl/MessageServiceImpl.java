@@ -86,6 +86,11 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
+    public long countUnread(Long userId) {
+        return messageRepository.countUnreadForUser(userId);
+    }
+
+    @Override
     @Transactional
     public void deleteAsAdmin(Long messageId) {
         Message message = messageRepository.findById(messageId)

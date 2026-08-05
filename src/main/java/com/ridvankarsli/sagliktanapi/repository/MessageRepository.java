@@ -46,4 +46,12 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
         Long getConversationId();
         long getCount();
     }
+
+    // Nav rozeti için: kullanıcının TÜM konuşmalarındaki toplam okunmamış
+    // mesaj sayısı - countUnreadGrouped'daki gibi konuşma bazlı değil, tek
+    // sayı (bkz. MessagingContext.refreshUnreadCount).
+    @Query("select count(m) from Message m "
+            + "where (m.conversation.userOne.id = :userId or m.conversation.userTwo.id = :userId) "
+            + "and m.sender.id <> :userId and m.readAt is null")
+    long countUnreadForUser(@Param("userId") Long userId);
 }

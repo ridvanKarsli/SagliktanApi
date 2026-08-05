@@ -18,6 +18,9 @@ public interface MessageService {
 
     void markRead(Long conversationId, Long readerId);
 
+    // Nav rozeti için toplam okunmamış mesaj sayısı (bkz. MessageController.unreadCount).
+    long countUnread(Long userId);
+
     // Şikayet üzerinden admin moderasyonu için (bkz. AdminServiceImpl.resolveReport)
     // - sahiplik kontrolü YAPMAZ, çağıran taraf zaten admin yetkisini
     // garanti etmiş olmalı (AdminController'daki @PreAuthorize("hasRole('ADMIN')")
