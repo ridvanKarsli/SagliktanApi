@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,12 @@ class CommentServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private UserDiseaseGroupRepository userDiseaseGroupRepository;
+    // clean-code denetimi sonrası CommentServiceImpl kendi assertOwnerOrAdmin
+    // metodunu kaldırıp paylaşılan OwnershipGuard'a taşıdı (bkz.
+    // service/OwnershipGuard.java) - constructor artık bunu da istiyor,
+    // yoksa @InjectMocks alanı null bırakıyor ve testler NPE ile patlıyordu.
+    @Mock
+    private OwnershipGuard ownershipGuard;
 
     @InjectMocks
     private CommentServiceImpl commentService;
