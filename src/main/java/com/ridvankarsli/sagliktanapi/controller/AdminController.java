@@ -1,5 +1,7 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
+import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.PostAttachment;
 import com.ridvankarsli.sagliktanapi.domain.ReportStatus;
 import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.dto.request.AdminReportActionRequest;
@@ -11,10 +13,14 @@ import com.ridvankarsli.sagliktanapi.dto.response.AdminStatsResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.AdminUserResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.MessageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.service.AdminService;
+import com.ridvankarsli.sagliktanapi.service.MediaStorageService;
+import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -28,6 +34,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.Map;
+
 // Tüm admin paneli uçları burada toplanıyor. Sınıf seviyesindeki
 // @PreAuthorize, SecurityConfig'deki genel authenticated() kuralının
 // üzerine ikinci bir savunma katmanı ekliyor - bir route eşleşme hatası
@@ -39,6 +48,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
     private final AdminService adminService;
+    // Fotoğrafları toplu (N+1 sorgu değil) çekip admin listesine
+    // zenginleştirmek için - bkz. PostController.toPageResponse'daki aynı
+    // desen.
+    private final PostAttachmentService postAttachmentService;
+    private final MediaStorageService mediaStorageService;
 
     @GetMapping("/stats")
     public AdminStatsResponse stats() {
@@ -88,12 +102,19 @@ public class AdminController {
     // postlar/yorumlar - silme işlemi için mevcut DELETE /api/posts/{id} ve
     // DELETE /api/comments/{id} uçları kullanılır (admin zaten ownership
     // bypass'ına sahip, burada tekrar yazılmadı).
+    // hasPhotos=true: tehlikeli/uygunsuz görsel içerik denetimi için sadece
+    // fotoğraflı gönderileri listeler (bkz. AdminService.listPosts).
     @GetMapping("/posts")
     public PageResponse<AdminPostResponse> listPosts(
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) Boolean hasPhotos,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return PageResponse.from(adminService.listPosts(q, pageable).map(AdminPostResponse::from));
+        Page<Post> page = adminService.listPosts(q, hasPhotos, pageable);
+        List<Long> ids = page.getContent().stream().map(Post::getId).toList();
+        Map<Long, List<PostAttachment>> attachmentsByPost = postAttachmentService.findByPostIds(ids);
+        return PageResponse.from(page.map(post -> AdminPostResponse.from(
+                post, toAttachmentResponses(attachmentsByPost.getOrDefault(post.getId(), List.of())))));
     }
 
     @GetMapping("/comments")
@@ -102,5 +123,9 @@ public class AdminController {
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return PageResponse.from(adminService.listComments(q, pageable).map(AdminCommentResponse::from));
+    }
+
+    private List<PostAttachmentResponse> toAttachmentResponses(List<PostAttachment> attachments) {
+        return attachments.stream().map(a -> PostAttachmentResponse.from(a, mediaStorageService)).toList();
     }
 }

@@ -122,8 +122,12 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public Page<Post> listPosts(String q, Pageable pageable) {
-        return StringUtils.hasText(q) ? postService.search(q, pageable) : postRepository.findAll(pageable);
+    public Page<Post> listPosts(String q, Boolean hasPhotos, Pageable pageable) {
+        boolean onlyWithPhotos = Boolean.TRUE.equals(hasPhotos);
+        if (StringUtils.hasText(q)) {
+            return onlyWithPhotos ? postService.searchWithAttachments(q, pageable) : postService.search(q, pageable);
+        }
+        return onlyWithPhotos ? postService.listWithAttachments(pageable) : postRepository.findAll(pageable);
     }
 
     @Override

@@ -33,7 +33,10 @@ public interface AdminService {
     // Genel içerik moderasyonu: sadece şikayet edilenler değil, TÜM
     // postlar/yorumlar. q boşsa tam liste (en yeni önce), doluysa mevcut
     // tam metin arama (bkz. Post/CommentService.search) kullanılır.
-    Page<Post> listPosts(String q, Pageable pageable);
+    // hasPhotos=true ise (tehlikeli/uygunsuz görsel içerik denetimi için)
+    // sadece en az bir fotoğrafı olan gönderiler döner - q ile birlikte de
+    // kullanılabilir (bkz. PostService.searchWithAttachments).
+    Page<Post> listPosts(String q, Boolean hasPhotos, Pageable pageable);
 
     Page<Comment> listComments(String q, Pageable pageable);
 }

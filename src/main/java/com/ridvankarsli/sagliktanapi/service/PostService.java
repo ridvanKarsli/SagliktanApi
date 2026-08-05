@@ -25,6 +25,14 @@ public interface PostService {
 
     Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable);
 
+    // Admin moderasyonu: sadece fotoğraf içeren gönderiler (bkz.
+    // PostRepository.HAS_ATTACHMENTS_CONDITION). tsQuery inşası search() ile
+    // birebir aynı olduğu için o mantığı tekrarlamamak adına burada,
+    // AdminServiceImpl'in çağırdığı bu iki metotta tutuluyor.
+    Page<Post> listWithAttachments(Pageable pageable);
+
+    Page<Post> searchWithAttachments(String query, Pageable pageable);
+
     Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content);
 
     void delete(Long postId, Long requesterId, boolean requesterIsAdmin);

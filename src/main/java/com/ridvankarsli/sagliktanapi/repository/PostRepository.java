@@ -100,4 +100,31 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             @Param("rawQuery") String rawQuery,
             @Param("tsQuery") String tsQuery,
             Pageable pageable);
+
+    // Admin moderasyonu: sadece fotoğraf/görsel içeren gönderileri
+    // görüntüleme (tehlikeli/uygunsuz görsel içerik denetimi). JOIN + DISTINCT
+    // yerine EXISTS tercih edildi çünkü bir post'un birden fazla attachment'ı
+    // olabilir - JOIN bu durumda satırları çoğaltıp (fan-out) DISTINCT/GROUP
+    // BY gerektirirdi, EXISTS ise post başına tek satır garantisiyle daha
+    // basit ve verimli. search()/searchBySubGroup() ile aynı gerekçeyle
+    // (kendi ORDER BY'ı olan native query) çağıran taraf Pageable'ı
+    // SearchQueryUtil.stripSort ile vermeli.
+    String HAS_ATTACHMENTS_CONDITION = "EXISTS (SELECT 1 FROM post_attachments pa WHERE pa.post_id = p.id)";
+
+    @Query(
+            value = "SELECT p.* FROM posts p WHERE " + HAS_ATTACHMENTS_CONDITION + " ORDER BY p.created_at DESC",
+            countQuery = "SELECT count(*) FROM posts p WHERE " + HAS_ATTACHMENTS_CONDITION,
+            nativeQuery = true)
+    Page<Post> findWithAttachments(Pageable pageable);
+
+    // q + "sadece fotoğraflı" filtresinin birlikte kullanılabilmesi için:
+    // mevcut arama eşleşme/sıralama mantığına (SEARCH_MATCH_CONDITION/
+    // SEARCH_RELEVANCE_ORDER) HAS_ATTACHMENTS_CONDITION AND ile eklendi.
+    @Query(
+            value = "SELECT p.* FROM posts p WHERE " + SEARCH_MATCH_CONDITION + " AND " + HAS_ATTACHMENTS_CONDITION
+                    + " ORDER BY " + SEARCH_RELEVANCE_ORDER,
+            countQuery = "SELECT count(*) FROM posts p WHERE " + SEARCH_MATCH_CONDITION + " AND " + HAS_ATTACHMENTS_CONDITION,
+            nativeQuery = true)
+    Page<Post> searchWithAttachments(
+            @Param("rawQuery") String rawQuery, @Param("tsQuery") String tsQuery, Pageable pageable);
 }
