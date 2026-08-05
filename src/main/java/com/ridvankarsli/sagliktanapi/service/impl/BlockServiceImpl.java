@@ -51,9 +51,14 @@ public class BlockServiceImpl implements BlockService {
 
     @Override
     public void assertNotBlocked(Long userAId, Long userBId) {
-        if (blockedUserRepository.existsByBlockerIdAndBlockedId(userAId, userBId)
-                || blockedUserRepository.existsByBlockerIdAndBlockedId(userBId, userAId)) {
+        if (isBlockedEitherDirection(userAId, userBId)) {
             throw new ForbiddenException("Bu kullanıcıyla mesajlaşamazsınız");
         }
+    }
+
+    @Override
+    public boolean isBlockedEitherDirection(Long userAId, Long userBId) {
+        return blockedUserRepository.existsByBlockerIdAndBlockedId(userAId, userBId)
+                || blockedUserRepository.existsByBlockerIdAndBlockedId(userBId, userAId);
     }
 }

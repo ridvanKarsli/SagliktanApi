@@ -17,10 +17,15 @@ public record ConversationResponse(
         String lastMessagePreview,
         boolean lastMessageHasAttachment,
         LocalDateTime lastMessageAt,
-        long unreadCount
+        long unreadCount,
+        // İki yönde de engel yoksa true. Kimin kimi engellediğini AYIRT
+        // ETMEZ - o bilgi zaten kullanıcının kendi engelli listesinden
+        // (bkz. GET /messages/blocked) çıkarılabiliyor; ikisi birlikte
+        // Chat.jsx'te "sen engelledin" / "o seni engellemiş" ayrımını yapar.
+        boolean canMessage
 ) {
     public static ConversationResponse from(
-            Conversation conversation, User otherUser, Message lastMessage, long unreadCount) {
+            Conversation conversation, User otherUser, Message lastMessage, long unreadCount, boolean canMessage) {
         return new ConversationResponse(
                 conversation.getId(),
                 otherUser.getId(),
@@ -28,7 +33,8 @@ public record ConversationResponse(
                 lastMessage != null ? lastMessage.getContent() : null,
                 lastMessage != null && lastMessage.getAttachmentKey() != null,
                 lastMessage != null ? lastMessage.getCreatedAt() : conversation.getCreatedAt(),
-                unreadCount
+                unreadCount,
+                canMessage
         );
     }
 }

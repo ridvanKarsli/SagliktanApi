@@ -19,4 +19,10 @@ public interface BlockService {
     // ForbiddenException fırlatır. MessageRequestService.send ve
     // MessageService.send tarafından çağrılır.
     void assertNotBlocked(Long userAId, Long userBId);
+
+    // assertNotBlocked'ın fırlatmayan hâli - ConversationResponse.canMessage
+    // için (bkz. MessageController.getConversation/listConversations):
+    // karşı taraf beni engellemişse de true döner, HANGİ yönde olduğunu
+    // ayırt etmez (kimin kimi engellediğini karşı tarafa sızdırmamak için).
+    boolean isBlockedEitherDirection(Long userAId, Long userBId);
 }

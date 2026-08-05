@@ -131,7 +131,8 @@ public class MessageController {
         conversationService.assertParticipant(conversation, principal.getId());
         User other = conversationService.otherParticipant(conversation, principal.getId());
         long unread = messageRepository.countByConversationIdAndSenderIdNotAndReadAtIsNull(id, principal.getId());
-        return ConversationResponse.from(conversation, other, null, unread);
+        boolean canMessage = !blockService.isBlockedEitherDirection(principal.getId(), other.getId());
+        return ConversationResponse.from(conversation, other, null, unread, canMessage);
     }
 
     @GetMapping("/conversations")
@@ -162,11 +163,18 @@ public class MessageController {
 
         return PageResponse.from(page.map(conversation -> {
             User other = conversationService.otherParticipant(conversation, principal.getId());
+            // Sayfa başına en fazla birkaç konuşma olduğu ve blocked_users
+            // küçük/indeksli bir tablo olduğu için burada toplu sorgu yerine
+            // konuşma başına tek sorgu kabul edilebilir - engelleme zaten
+            // istisnai bir durum, listConversations'ın asıl N+1 riski
+            // (mesaj/okunmamış sayısı) yukarıda ayrıca toplu çekiliyor.
+            boolean canMessage = !blockService.isBlockedEitherDirection(principal.getId(), other.getId());
             return ConversationResponse.from(
                     conversation,
                     other,
                     finalLastMessageByConversation.get(conversation.getId()),
-                    finalUnreadByConversation.getOrDefault(conversation.getId(), 0L));
+                    finalUnreadByConversation.getOrDefault(conversation.getId(), 0L),
+                    canMessage);
         }));
     }
 
