@@ -17,4 +17,9 @@ public interface MessageRequestRepository extends JpaRepository<MessageRequest, 
             Long recipientId, MessageRequestStatus status, Pageable pageable);
 
     long countByRecipientIdAndStatus(Long recipientId, MessageRequestStatus status);
+
+    // Kullanıcının kendi gönderdiği, hâlâ yanıt bekleyen istekler - "Giden
+    // istekler" sekmesi + iptal akışı için.
+    Page<MessageRequest> findBySenderIdAndStatusOrderByCreatedAtDesc(
+            Long senderId, MessageRequestStatus status, Pageable pageable);
 }

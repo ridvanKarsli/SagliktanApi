@@ -17,11 +17,19 @@ public interface MessageRequestService {
 
     Page<MessageRequest> listIncoming(Long recipientId, Pageable pageable);
 
+    Page<MessageRequest> listOutgoing(Long senderId, Pageable pageable);
+
     long countPending(Long recipientId);
 
     Conversation accept(Long requestId, Long recipientId);
 
     void reject(Long requestId, Long recipientId);
+
+    // Gönderen, henüz yanıtlanmamış kendi isteğini geri çeker - istek
+    // tamamen silinir (PENDING kaydı kalırsa aynı kişiye tekrar istek
+    // gönderilmesini uq_message_requests_pending engeller, bu yüzden reddet
+    // gibi durumda bırakmak yerine satırı kaldırıyoruz).
+    void cancel(Long requestId, Long senderId);
 
     record Outcome(MessageRequest request, Conversation conversation) {
         public static Outcome ofRequest(MessageRequest request) {

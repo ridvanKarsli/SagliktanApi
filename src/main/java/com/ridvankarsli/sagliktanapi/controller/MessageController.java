@@ -92,6 +92,22 @@ public class MessageController {
         return new UnreadCountResponse(messageRequestService.countPending(principal.getId()));
     }
 
+    // Kullanıcının kendi gönderdiği, hâlâ yanıt bekleyen istekler - "Giden
+    // istekler" sekmesi.
+    @GetMapping("/requests/outgoing")
+    public PageResponse<MessageRequestResponse> listOutgoingRequests(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<MessageRequest> page = messageRequestService.listOutgoing(principal.getId(), pageable);
+        return PageResponse.from(page.map(MessageRequestResponse::from));
+    }
+
+    @DeleteMapping("/requests/{id}")
+    public void cancelRequest(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        messageRequestService.cancel(id, principal.getId());
+    }
+
     @PutMapping("/requests/{id}/accept")
     public Map<String, Long> acceptRequest(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         Conversation conversation = messageRequestService.accept(id, principal.getId());
@@ -104,6 +120,19 @@ public class MessageController {
     }
 
     // --- Konuşmalar ve mesajlar ---
+
+    // Sohbet ekranına doğrudan (ör. sayfa yenileme, paylaşılan link) girildiğinde
+    // liste sayfasından geçmeden karşı tarafın kim olduğunu gösterebilmek için -
+    // listConversations'taki toplu çekim burada gereksiz, tek konuşma için
+    // doğrudan sorgulanıyor.
+    @GetMapping("/conversations/{id}")
+    public ConversationResponse getConversation(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        Conversation conversation = conversationService.getById(id);
+        conversationService.assertParticipant(conversation, principal.getId());
+        User other = conversationService.otherParticipant(conversation, principal.getId());
+        long unread = messageRepository.countByConversationIdAndSenderIdNotAndReadAtIsNull(id, principal.getId());
+        return ConversationResponse.from(conversation, other, null, unread);
+    }
 
     @GetMapping("/conversations")
     public PageResponse<ConversationResponse> listConversations(

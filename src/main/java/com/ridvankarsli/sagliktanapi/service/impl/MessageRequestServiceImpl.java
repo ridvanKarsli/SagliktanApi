@@ -90,6 +90,12 @@ public class MessageRequestServiceImpl implements MessageRequestService {
     }
 
     @Override
+    public Page<MessageRequest> listOutgoing(Long senderId, Pageable pageable) {
+        return messageRequestRepository.findBySenderIdAndStatusOrderByCreatedAtDesc(
+                senderId, MessageRequestStatus.PENDING, pageable);
+    }
+
+    @Override
     public long countPending(Long recipientId) {
         return messageRequestRepository.countByRecipientIdAndStatus(recipientId, MessageRequestStatus.PENDING);
     }
@@ -107,6 +113,20 @@ public class MessageRequestServiceImpl implements MessageRequestService {
         request.setStatus(MessageRequestStatus.REJECTED);
         request.setRespondedAt(LocalDateTime.now());
         messageRequestRepository.save(request);
+    }
+
+    @Override
+    @Transactional
+    public void cancel(Long requestId, Long senderId) {
+        MessageRequest request = messageRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mesaj isteği bulunamadı"));
+        if (!request.getSender().getId().equals(senderId)) {
+            throw new ForbiddenException("Bu istek size ait değil");
+        }
+        if (request.getStatus() != MessageRequestStatus.PENDING) {
+            throw new BadRequestException("Bu istek zaten yanıtlanmış");
+        }
+        messageRequestRepository.delete(request);
     }
 
     // Sadece alıcı kendi bekleyen isteğini kabul/red edebilir - gönderen
