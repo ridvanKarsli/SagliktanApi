@@ -12,11 +12,13 @@ import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.ContentReportRepository;
+import com.ridvankarsli.sagliktanapi.repository.MessageRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.AdminReportItem;
 import com.ridvankarsli.sagliktanapi.service.AdminService;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.service.MessageService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
@@ -38,12 +40,18 @@ public class AdminServiceImpl implements AdminService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final ContentReportRepository contentReportRepository;
+    // Faz 2 adım 6: mesaj şikayetlerinde önizleme için (bkz. toItem).
+    private final MessageRepository messageRepository;
     // Post/CommentService (repository değil) kasıtlı kullanılıyor: silme
     // işlemleri owner-or-admin kontrolünden ve (yorum için) soft-delete
     // mantığından geçmeli - bunları burada tekrar yazmak yerine mevcut,
     // zaten denetimden geçmiş service metotları çağrılıyor.
     private final PostService postService;
     private final CommentService commentService;
+    // MessageService.deleteAsAdmin: mesajlarda sahiplik kontrolü yok (mesaj
+    // zaten iki taraflı özel içerik, "owner" kavramı Post/Comment'teki gibi
+    // değil) - moderasyon amaçlı direkt silme.
+    private final MessageService messageService;
 
     @Override
     public AdminStatsResponse getStats() {
@@ -108,10 +116,10 @@ public class AdminServiceImpl implements AdminService {
         // silme başarısız olursa (ör. içerik zaten silinmiş) durum
         // güncellemesi de rollback olur, admin tekrar deneyebilir.
         if (deleteContent) {
-            if (report.getTargetType() == ReportTargetType.POST) {
-                postService.delete(report.getTargetId(), adminId, true);
-            } else {
-                commentService.delete(report.getTargetId(), adminId, true);
+            switch (report.getTargetType()) {
+                case POST -> postService.delete(report.getTargetId(), adminId, true);
+                case COMMENT -> commentService.delete(report.getTargetId(), adminId, true);
+                case MESSAGE -> messageService.deleteAsAdmin(report.getTargetId());
             }
         }
 
@@ -136,8 +144,8 @@ public class AdminServiceImpl implements AdminService {
     }
 
     private AdminReportItem toItem(ContentReport report) {
-        if (report.getTargetType() == ReportTargetType.POST) {
-            return postRepository.findById(report.getTargetId())
+        return switch (report.getTargetType()) {
+            case POST -> postRepository.findById(report.getTargetId())
                     .map(p -> new AdminReportItem(
                             report,
                             truncate(p.getTitle() + " — " + p.getContent()),
@@ -145,16 +153,23 @@ public class AdminServiceImpl implements AdminService {
                             p.getUser().getFirstName() + " " + p.getUser().getLastName()
                     ))
                     .orElseGet(() -> new AdminReportItem(report, "[Gönderi silinmiş]", null, null));
-        }
-
-        return commentRepository.findById(report.getTargetId())
-                .map(c -> new AdminReportItem(
-                        report,
-                        truncate(c.getContent()),
-                        c.getUser().getId(),
-                        c.getUser().getFirstName() + " " + c.getUser().getLastName()
-                ))
-                .orElseGet(() -> new AdminReportItem(report, "[Yorum silinmiş]", null, null));
+            case COMMENT -> commentRepository.findById(report.getTargetId())
+                    .map(c -> new AdminReportItem(
+                            report,
+                            truncate(c.getContent()),
+                            c.getUser().getId(),
+                            c.getUser().getFirstName() + " " + c.getUser().getLastName()
+                    ))
+                    .orElseGet(() -> new AdminReportItem(report, "[Yorum silinmiş]", null, null));
+            case MESSAGE -> messageRepository.findById(report.getTargetId())
+                    .map(m -> new AdminReportItem(
+                            report,
+                            truncate(m.getContent() != null ? m.getContent() : "[Fotoğraf]"),
+                            m.getSender().getId(),
+                            m.getSender().getFirstName() + " " + m.getSender().getLastName()
+                    ))
+                    .orElseGet(() -> new AdminReportItem(report, "[Mesaj silinmiş]", null, null));
+        };
     }
 
     private String truncate(String text) {

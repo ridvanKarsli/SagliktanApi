@@ -6,6 +6,7 @@ import com.ridvankarsli.sagliktanapi.domain.User;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.ContentReportRepository;
+import com.ridvankarsli.sagliktanapi.repository.MessageRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.ContentReportService;
@@ -21,6 +22,9 @@ public class ContentReportServiceImpl implements ContentReportService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
+    // Faz 2 adım 6: mesaj şikayeti için hedefin gerçekten var olduğunu
+    // doğrulamak amacıyla eklendi.
+    private final MessageRepository messageRepository;
 
     @Override
     @Transactional
@@ -48,10 +52,14 @@ public class ContentReportServiceImpl implements ContentReportService {
         boolean exists = switch (targetType) {
             case POST -> postRepository.existsById(targetId);
             case COMMENT -> commentRepository.existsById(targetId);
+            case MESSAGE -> messageRepository.existsById(targetId);
         };
         if (!exists) {
-            throw new ResourceNotFoundException(
-                    targetType == ReportTargetType.POST ? "Gönderi bulunamadı" : "Yorum bulunamadı");
+            throw new ResourceNotFoundException(switch (targetType) {
+                case POST -> "Gönderi bulunamadı";
+                case COMMENT -> "Yorum bulunamadı";
+                case MESSAGE -> "Mesaj bulunamadı";
+            });
         }
     }
 }
