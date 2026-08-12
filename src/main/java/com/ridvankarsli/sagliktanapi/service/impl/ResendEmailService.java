@@ -1,40 +1,65 @@
 package com.ridvankarsli.sagliktanapi.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ridvankarsli.sagliktanapi.service.EmailService;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-// Eski projedeki (com.saglikAdimiAPI.Helper.EmailService) SMTP bilgileri
-// buraya taşındı; gönderim artık JavaMailSender üzerinden yapılıyor.
-// Bu sınıf ConsoleEmailService'in (dev-only log stub) yerini alan gerçek
-// implementasyondur ve tek aktif EmailService bean'idir.
+// Gmail SMTP'den (eski SmtpEmailService + MailConfig, kaldırıldı) Resend'in
+// REST API'sine geçiş - bkz. görev "Gmail SMTP'den transactional email
+// servisine geç". Gerekçe: Gmail SMTP hem günlük gönderim limitine hem de
+// kişisel bir hesabın "app password"üne bağımlıydı ve deliverability
+// (gerçek kullanıcı kutusuna ulaşma, spam'e düşmeme) gerçek bir transactional
+// servise göre belirgin şekilde daha zayıf. Resend'in REST API'si için ayrı
+// bir SDK/bağımlılık EKLEMEDİK - java.net.http.HttpClient (JDK 11+ dahili)
+// ve zaten classpath'te olan Jackson yeterli; bu yüzden spring-boot-starter-mail
+// bağımlılığı da pom.xml'den kaldırıldı.
 @Slf4j
 @Service
-@RequiredArgsConstructor
-public class SmtpEmailService implements EmailService {
+public class ResendEmailService implements EmailService {
 
     private static final String BRAND_COLOR = "#0f766e";
+    private static final URI RESEND_ENDPOINT = URI.create("https://api.resend.com/emails");
 
-    private final JavaMailSender mailSender;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${email.sender}")
-    private String senderEmail;
+    // Boş varsayılan BİLEREK: key set edilmemişse (ör. Resend henüz
+    // kurulmamış bir ortam, ya da CI - orada zaten
+    // app.testing.auto-verify-email=true olduğu için emailService hiç
+    // çağrılmıyor, bkz. AuthServiceImpl.finalizeRegistration) uygulama yine
+    // de ayağa kalkabilsin diye fail-fast yapılmıyor. send() içinde key
+    // boşsa gönderim denenmez, sadece uyarı loglanır.
+    @Value("${resend.api-key:}")
+    private String apiKey;
 
-    // Doğrulama linkinin işaret edeceği backend adresi. Henüz bir frontend
-    // olmadığı için link doğrudan backend'deki GET /api/auth/verify-email
-    // endpoint'ine gidiyor ve basit bir HTML sonuç sayfası dönüyor. İleride
-    // gerçek bir frontend kurulunca bu, frontend'deki bir sayfaya yönlenmeli.
+    // Resend'de SADECE doğrulanmış bir domain'den gönderim yapılabiliyor.
+    // Domain (sagliktan.com) doğrulanana kadar Resend'in kendi test
+    // adresine (onboarding@resend.dev) düşülüyor - bu adresten SADECE
+    // Resend hesabının kendi e-postasına gönderim yapılabiliyor, gerçek
+    // kullanıcılara ulaşmaz. Domain doğrulanınca Railway'de
+    // RESEND_FROM_EMAIL=noreply@sagliktan.com (ya da benzeri) set edilmeli.
+    @Value("${resend.from-email:onboarding@resend.dev}")
+    private String fromEmail;
+
+    // Doğrulama linkinin işaret edeceği backend adresi (bkz. eski
+    // SmtpEmailService'teki aynı not - frontend kurulunca buraya
+    // yönlendirilebilir).
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -124,19 +149,35 @@ public class SmtpEmailService implements EmailService {
     }
 
     private void send(String to, String subject, String htmlBody) {
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("RESEND_API_KEY tanımlı değil, e-posta gönderilmedi (sessizce atlandı): {} -> {}", subject, to);
+            return;
+        }
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(senderEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlBody, true);
-            mailSender.send(message);
-            log.info("E-posta gönderildi: {} -> {}", senderEmail, to);
-        } catch (MessagingException e) {
-            log.error("E-posta gönderilemedi (MessagingException): {}", to, e);
-        } catch (MailException e) {
-            log.error("E-posta gönderilemedi (MailException, muhtemelen SMTP/kimlik doğrulama hatası): {}", to, e);
+            Map<String, Object> body = new HashMap<>();
+            body.put("from", "SAĞLIKTAN <" + fromEmail + ">");
+            body.put("to", List.of(to));
+            body.put("subject", subject);
+            body.put("html", htmlBody);
+
+            HttpRequest request = HttpRequest.newBuilder(RESEND_ENDPOINT)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(15))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                log.info("E-posta gönderildi (Resend): {} -> {}", fromEmail, to);
+            } else {
+                // Gövdeyi de logla - Resend hata gövdesinde genelde net bir
+                // sebep dönüyor (ör. "domain not verified", "invalid from").
+                log.error("E-posta gönderilemedi (Resend HTTP {}): {} -> {} - gövde: {}",
+                        response.statusCode(), fromEmail, to, response.body());
+            }
+        } catch (Exception e) {
+            log.error("E-posta gönderilemedi (Resend istek hatası): {}", to, e);
         }
     }
 }

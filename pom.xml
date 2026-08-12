@@ -67,11 +67,11 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- SMTP ile e-posta gönderimi (doğrulama kodu / şifre sıfırlama) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
+        <!-- E-posta gönderimi (doğrulama kodu / şifre sıfırlama) artık Resend'in
+             REST API'si üzerinden (bkz. ResendEmailService) - ayrı bir SDK/starter
+             gerekmiyor, java.net.http.HttpClient (JDK dahili) + aşağıdaki Jackson
+             yeterli. Eskiden burada olan spring-boot-starter-mail (SMTP) bu yüzden
+             kaldırıldı - "Gmail SMTP'den transactional email servisine geç" görevi. -->
 
         <!-- Swagger / OpenAPI (rapor adım 11). v3.x = Spring Boot 4.x ile uyumlu hat. -->
         <dependency>

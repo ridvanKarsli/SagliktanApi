@@ -64,8 +64,6 @@ jobs:
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres
           APP_JWT_SECRET: Y2ktb25seS10ZXN0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q9
-          EMAIL_SENDER: ci-test@example.com
-          EMAIL_PASSWORD: ci-test-password
           APP_BASE_URL: http://localhost:8080
           # SADECE bu workflow'da - bkz. load-test/locustfile.py başındaki
           # açıklama. Prod/staging'de asla tanımlanmaz.

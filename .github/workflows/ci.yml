@@ -32,12 +32,14 @@ jobs:
       # yüzden CI'da gereken değerler ortam değişkeni olarak veriliyor.
       # Bunlar sadece CI'da kullanılan, gerçek prod sırlarıyla ilgisi
       # olmayan test değerleridir.
+      # NOT: eskiden burada EMAIL_SENDER/EMAIL_PASSWORD (sahte SMTP test
+      # değerleri) vardı - Resend'e geçişle (resend.api-key artık boş
+      # varsayılanla çalışıyor, bkz. application.properties) CI'ın bu
+      # değerlere ihtiyacı kalmadı.
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sagliktan
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       APP_JWT_SECRET: Y2ktb25seS10ZXN0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q9
-      EMAIL_SENDER: ci-test@example.com
-      EMAIL_PASSWORD: ci-test-password
       APP_BASE_URL: http://localhost:8080
 
     steps:
