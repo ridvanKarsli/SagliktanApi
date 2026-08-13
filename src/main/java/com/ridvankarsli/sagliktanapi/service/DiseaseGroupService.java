@@ -11,6 +11,11 @@ public interface DiseaseGroupService {
 
     List<DiseaseGroup> listAll();
 
+    // Gruplar sayfası arama kutusu - q boş/null/anlamsızsa boş liste döner,
+    // "sonuç yok" gibi görünür (çağıran taraf q boşsa zaten listAll()'a
+    // yönlendirmeli, bkz. DiseaseGroupController.listAll).
+    List<DiseaseGroup> search(String q);
+
     DiseaseGroup getById(Long id);
 
     DiseaseGroup create(String name, String description);

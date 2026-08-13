@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,9 +33,16 @@ public class DiseaseGroupController {
 
     private final DiseaseGroupService diseaseGroupService;
 
+    // q verilmezse tüm gruplar (eski davranış, geriye dönük uyumlu), q
+    // doluysa Gruplar sayfasındaki arama kutusu için prefix + fuzzy tam
+    // metin arama (bkz. DiseaseGroupService.search - Posts.jsx'teki gönderi
+    // aramasıyla aynı altyapı).
     @GetMapping
-    public List<DiseaseGroupResponse> listAll() {
-        return diseaseGroupService.listAll().stream().map(this::toResponse).toList();
+    public List<DiseaseGroupResponse> listAll(@RequestParam(required = false) String q) {
+        List<DiseaseGroup> groups = (q == null || q.isBlank())
+                ? diseaseGroupService.listAll()
+                : diseaseGroupService.search(q);
+        return groups.stream().map(this::toResponse).toList();
     }
 
     @GetMapping("/{id}")

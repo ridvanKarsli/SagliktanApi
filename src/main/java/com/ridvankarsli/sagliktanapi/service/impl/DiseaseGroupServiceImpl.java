@@ -10,6 +10,7 @@ import com.ridvankarsli.sagliktanapi.repository.DiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
+import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,20 @@ public class DiseaseGroupServiceImpl implements DiseaseGroupService {
     @Override
     public List<DiseaseGroup> listAll() {
         return diseaseGroupRepository.findAll();
+    }
+
+    @Override
+    public List<DiseaseGroup> search(String q) {
+        // PostServiceImpl.search() ile aynı desen: prefix tsquery Java'da
+        // (bkz. SearchQueryUtil javadoc - SQL fonksiyonu canlıda 500
+        // hatasına yol açmıştı) inşa edilip repository'ye hazır veriliyor.
+        // q boş/anlamsızsa (sadece noktalama vb.) veritabanına hiç
+        // gitmeden boş liste dönüyoruz.
+        String tsQuery = SearchQueryUtil.toPrefixTsQuery(q);
+        if (tsQuery == null) {
+            return List.of();
+        }
+        return diseaseGroupRepository.search(q, tsQuery);
     }
 
     @Override
