@@ -18,6 +18,10 @@ public record CommentResponse(
         long helpfulCount,
         long notHelpfulCount,
         ReactionValue myReaction,
+        // Basit içerik moderasyonu (bkz. ContentModerationService): true ise
+        // frontend destekleyici bir kaynak bilgisi (182 ALO Yaşam Hattı)
+        // gösterir - bu alan içeriği ASLA gizlemez/engellemez.
+        boolean flaggedSensitive,
         LocalDateTime createdAt,
         // Bu yorumun DOĞRUDAN yanıt sayısı (alt yanıtların yanıtları dahil
         // değil). Eskiden burada tüm alt ağaç (sınırsız derinlik) gömülü
@@ -51,6 +55,7 @@ public record CommentResponse(
                 reactions.helpfulCount(),
                 reactions.notHelpfulCount(),
                 reactions.myReaction(),
+                comment.isFlaggedSensitive(),
                 comment.getCreatedAt(),
                 replyCount
         );

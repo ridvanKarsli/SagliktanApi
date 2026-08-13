@@ -40,6 +40,10 @@ public record PostResponse(
         // Faz 2 adım 4: gönderiye eklenmiş fotoğraflar, galeri sırasına
         // göre (bkz. PostAttachment.sortOrder).
         List<PostAttachmentResponse> attachments,
+        // Basit içerik moderasyonu (bkz. ContentModerationService): true ise
+        // frontend destekleyici bir kaynak bilgisi (182 ALO Yaşam Hattı)
+        // gösterir - bu alan içeriği ASLA gizlemez/engellemez.
+        boolean flaggedSensitive,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -77,6 +81,7 @@ public record PostResponse(
                 saved,
                 savedCount,
                 attachments,
+                post.isFlaggedSensitive(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

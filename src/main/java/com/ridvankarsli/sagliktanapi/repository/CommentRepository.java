@@ -45,6 +45,11 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // Profil sayfasındaki "Yorum" istatistiği - silinmiş yorumlar sayılmaz.
     long countByUserIdAndDeletedFalse(Long userId);
 
+    // KVKK veri dışa aktarma (bkz. UserServiceImpl.exportData) - kullanıcının
+    // TÜM yorumlarını (silinmiş olanlar dahil, kendi verisi olduğu için)
+    // kronolojik sırayla döner.
+    List<Comment> findByUserIdOrderByCreatedAtDesc(Long userId);
+
     // Gelişmiş arama (V11/V12): prefix tsquery string'i Java'da inşa edilip
     // (bkz. SearchQueryUtil) hazır veriliyor - bkz. PostRepository.search'teki
     // aynı desen açıklaması. Silinmiş (soft delete) yorumlar sonuçlara girmez.

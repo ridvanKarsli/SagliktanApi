@@ -4,11 +4,13 @@ import com.ridvankarsli.sagliktanapi.domain.DiseaseGroup;
 import com.ridvankarsli.sagliktanapi.domain.Post;
 import com.ridvankarsli.sagliktanapi.domain.SubGroup;
 import com.ridvankarsli.sagliktanapi.domain.User;
+import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.ContentModerationService;
 import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostSortOption;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,6 +52,13 @@ class PostServiceImplTest {
     private UserDiseaseGroupRepository userDiseaseGroupRepository;
     @Mock
     private PostAttachmentService postAttachmentService;
+    // create()/update() artık moderasyondan geçiyor (bkz. PostServiceImpl.
+    // moderateOrThrow) - stub'lanmazsa moderate() null döner ve
+    // ModerationResult.blocked() çağrısı NPE atar. lenient(): sadece
+    // moderasyona ulaşan testlerde kullanılır, forbidden testinde
+    // "unnecessary stubbing" uyarısı vermesin diye.
+    @Mock
+    private ContentModerationService contentModerationService;
 
     @InjectMocks
     private PostServiceImpl postService;
@@ -65,6 +75,8 @@ class PostServiceImplTest {
         DiseaseGroup diseaseGroup = DiseaseGroup.builder().id(DISEASE_GROUP_ID).name("Retinitis Pigmentosa").build();
         subGroup = SubGroup.builder().id(SUB_GROUP_ID).diseaseGroup(diseaseGroup).name("Sohbet").build();
         user = User.builder().id(USER_ID).email("test@example.com").build();
+        lenient().when(contentModerationService.moderate(any()))
+                .thenReturn(ContentModerationService.ModerationResult.CLEAN);
     }
 
     @Test
@@ -109,6 +121,40 @@ class PostServiceImplTest {
         postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "İçerik", keys);
 
         verify(postAttachmentService).attach(any(Post.class), eq(keys));
+    }
+
+    // Rapor: küfür/spam içeren başlık/içerik REDDEDİLİR - post hiç kaydedilmez.
+    @Test
+    void create_throwsBadRequest_whenContentIsBlockedByModeration() {
+        when(subGroupRepository.findById(SUB_GROUP_ID)).thenReturn(Optional.of(subGroup));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(USER_ID, DISEASE_GROUP_ID))
+                .thenReturn(true);
+        when(contentModerationService.moderate("Küfürlü içerik"))
+                .thenReturn(new ContentModerationService.ModerationResult(true, "Uygunsuz içerik", false));
+
+        assertThrows(BadRequestException.class,
+                () -> postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "Küfürlü içerik", null));
+
+        verify(postRepository, never()).save(any());
+    }
+
+    // Rapor: kriz sinyali (intihar/kendine zarar vb.) İÇERİĞİ ASLA
+    // engellemez - sadece flaggedSensitive=true olarak kaydedilir.
+    @Test
+    void create_savesPostAsFlaggedSensitive_whenModerationDetectsCrisisSignal_butDoesNotBlock() {
+        when(subGroupRepository.findById(SUB_GROUP_ID)).thenReturn(Optional.of(subGroup));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(USER_ID, DISEASE_GROUP_ID))
+                .thenReturn(true);
+        when(contentModerationService.moderate("Kriz içeren içerik"))
+                .thenReturn(new ContentModerationService.ModerationResult(false, null, true));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Post result = postService.create(SUB_GROUP_ID, USER_ID, "Başlık", "Kriz içeren içerik", null);
+
+        assertEquals(true, result.isFlaggedSensitive());
+        verify(postRepository).save(any(Post.class));
     }
 
     // Faz 2 adım 1: sort=popular verilince reaksiyon-sayısı sorgusuna,

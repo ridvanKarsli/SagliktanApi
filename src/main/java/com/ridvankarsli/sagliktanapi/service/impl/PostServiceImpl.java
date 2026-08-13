@@ -3,12 +3,14 @@ package com.ridvankarsli.sagliktanapi.service.impl;
 import com.ridvankarsli.sagliktanapi.domain.Post;
 import com.ridvankarsli.sagliktanapi.domain.SubGroup;
 import com.ridvankarsli.sagliktanapi.domain.User;
+import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.ContentModerationService;
 import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import com.ridvankarsli.sagliktanapi.service.PostAttachmentService;
 import com.ridvankarsli.sagliktanapi.service.PostService;
@@ -38,6 +40,7 @@ public class PostServiceImpl implements PostService {
     // geçersiz bir fotoğraf referansı TÜM post oluşturmayı geri alsın.
     private final PostAttachmentService postAttachmentService;
     private final OwnershipGuard ownershipGuard;
+    private final ContentModerationService contentModerationService;
 
     @Override
     @Transactional
@@ -48,12 +51,14 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("Kullanıcı bulunamadı"));
 
         assertMemberOfGroup(userId, subGroup.getDiseaseGroup().getId());
+        boolean sensitive = moderateOrThrow(title, content);
 
         Post post = Post.builder()
                 .subGroup(subGroup)
                 .user(user)
                 .title(title)
                 .content(content)
+                .flaggedSensitive(sensitive)
                 .build();
 
         post = postRepository.save(post);
@@ -136,9 +141,11 @@ public class PostServiceImpl implements PostService {
     public Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content) {
         Post post = getById(postId);
         ownershipGuard.assertOwnerOrAdmin(post.getUser().getId(), requesterId, requesterIsAdmin);
+        boolean sensitive = moderateOrThrow(title, content);
 
         post.setTitle(title);
         post.setContent(content);
+        post.setFlaggedSensitive(sensitive);
         return postRepository.save(post);
     }
 
@@ -162,5 +169,21 @@ public class PostServiceImpl implements PostService {
         if (!userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(userId, diseaseGroupId)) {
             throw new ForbiddenException("Bu hastalık grubuna üye değilsiniz, gönderi paylaşamazsınız");
         }
+    }
+
+    // Rapor: başlık + içerik BİRLİKTE moderasyondan geçer - herhangi biri
+    // küfür/spam içeriyorsa (blocked) BadRequestException fırlatılır;
+    // herhangi biri kriz sinyali taşıyorsa (bloklamadan) true döner (bkz.
+    // ContentModerationService javadoc'u).
+    private boolean moderateOrThrow(String title, String content) {
+        ContentModerationService.ModerationResult titleResult = contentModerationService.moderate(title);
+        if (titleResult.blocked()) {
+            throw new BadRequestException(titleResult.blockReason());
+        }
+        ContentModerationService.ModerationResult contentResult = contentModerationService.moderate(content);
+        if (contentResult.blocked()) {
+            throw new BadRequestException(contentResult.blockReason());
+        }
+        return titleResult.sensitive() || contentResult.sensitive();
     }
 }

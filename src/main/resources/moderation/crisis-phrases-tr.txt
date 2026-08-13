@@ -1,0 +1,32 @@
+# ContentModerationServiceImpl tarafından yüklenir. Tüm metin üzerinde
+# ALT DİZE (substring) eşleşmesiyle aranır - bkz. servisin
+# containsCrisisPhrase metodu. Bu liste kişiyi ASLA engellemek için değil,
+# sadece flaggedSensitive=true işaretleyip destekleyici bir bilgi kutusu
+# (182 ALO Yaşam Hattı) göstermek için kullanılır. Yanlış pozitif maliyeti
+# düşük olduğundan liste bilerek geniş tutuldu.
+intihar
+kendimi öldür
+kendime zarar
+kendimi kesmek
+kendimi kesiyorum
+canıma kıy
+canima kiy
+hayatıma son ver
+hayatima son ver
+yaşamak istemiyorum
+yasamak istemiyorum
+ölmek istiyorum
+olmek istiyorum
+ölesim geliyor
+olesim geliyor
+yaşamı bırakmak
+yasami birakmak
+bitirmek istiyorum artık
+artık dayanamıyorum
+artik dayanamiyorum
+yaşamaya değmiyor
+yasamaya degmiyor
+keşke ölseydim
+keske olseydim
+kendime kıymak
+kendime kiymak

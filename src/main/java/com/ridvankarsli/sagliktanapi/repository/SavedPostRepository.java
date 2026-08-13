@@ -20,6 +20,11 @@ public interface SavedPostRepository extends JpaRepository<SavedPost, Long> {
     // SavedPostServiceImpl), 404 fırlatmaya gerek yok.
     void deleteByUserIdAndPostId(Long userId, Long postId);
 
+    // Hesap silme (bkz. UserServiceImpl.deleteAccount) - kaydedilen
+    // gönderiler (bookmark) İÇERİK değil, hesabın kişisel tercihi, bu yüzden
+    // gönderi/yorumların aksine tamamen kaldırılır.
+    void deleteByUserId(Long userId);
+
     // "Kaydedilenler" sekmesi: Post'u doğrudan JPQL join ile seçiyoruz -
     // SavedPost.post lazy olduğu için normal bir "Page<SavedPost> bul,
     // sonra .getPost() çağır" yaklaşımı repository sınırının dışında

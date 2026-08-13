@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
+import com.ridvankarsli.sagliktanapi.service.ContentModerationService;
 import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +50,11 @@ class CommentServiceImplTest {
     // yoksa @InjectMocks alanı null bırakıyor ve testler NPE ile patlıyordu.
     @Mock
     private OwnershipGuard ownershipGuard;
+    // create()/update() artık moderasyondan geçiyor (bkz.
+    // CommentServiceImpl.moderateOrThrow) - bkz. PostServiceImplTest'teki
+    // aynı gerekçe.
+    @Mock
+    private ContentModerationService contentModerationService;
 
     @InjectMocks
     private CommentServiceImpl commentService;
@@ -65,6 +72,8 @@ class CommentServiceImplTest {
         SubGroup subGroup = SubGroup.builder().id(10L).diseaseGroup(diseaseGroup).name("Sohbet").build();
         post = Post.builder().id(POST_ID).subGroup(subGroup).title("Başlık").content("İçerik").build();
         user = User.builder().id(USER_ID).email("test@example.com").build();
+        lenient().when(contentModerationService.moderate(any()))
+                .thenReturn(ContentModerationService.ModerationResult.CLEAN);
     }
 
     @Test
@@ -154,5 +163,39 @@ class CommentServiceImplTest {
                 () -> commentService.update(50L, USER_ID, false, "Düzenlenmiş içerik"));
 
         verify(commentRepository, never()).save(any());
+    }
+
+    // Rapor: küfür/spam içeren yorum REDDEDİLİR - hiç kaydedilmez.
+    @Test
+    void create_throwsBadRequest_whenContentIsBlockedByModeration() {
+        when(postRepository.findById(POST_ID)).thenReturn(Optional.of(post));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(USER_ID, DISEASE_GROUP_ID))
+                .thenReturn(true);
+        when(contentModerationService.moderate("Küfürlü yorum"))
+                .thenReturn(new ContentModerationService.ModerationResult(true, "Uygunsuz içerik", false));
+
+        assertThrows(BadRequestException.class,
+                () -> commentService.create(POST_ID, USER_ID, "Küfürlü yorum", null));
+
+        verify(commentRepository, never()).save(any());
+    }
+
+    // Rapor: kriz sinyali İÇERİĞİ ASLA engellemez - sadece
+    // flaggedSensitive=true olarak kaydedilir (bkz. ContentModerationService
+    // javadoc'u - kimseyi zor bir deneyimini paylaşırken susturmuyoruz).
+    @Test
+    void create_savesCommentAsFlaggedSensitive_whenModerationDetectsCrisisSignal_butDoesNotBlock() {
+        when(postRepository.findById(POST_ID)).thenReturn(Optional.of(post));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDiseaseGroupRepository.existsById_UserIdAndId_DiseaseGroupId(USER_ID, DISEASE_GROUP_ID))
+                .thenReturn(true);
+        when(contentModerationService.moderate("Kriz içeren yorum"))
+                .thenReturn(new ContentModerationService.ModerationResult(false, null, true));
+        when(commentRepository.save(any(Comment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Comment result = commentService.create(POST_ID, USER_ID, "Kriz içeren yorum", null);
+
+        assertEquals(true, result.isFlaggedSensitive());
     }
 }

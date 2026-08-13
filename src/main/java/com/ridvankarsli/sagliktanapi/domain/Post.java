@@ -51,6 +51,13 @@ public class Post {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    // Basit içerik moderasyonu (bkz. ContentModerationService): kriz sinyali
+    // (intihar/kendine zarar verme vb.) tespit edilirse true olur. İçerik
+    // ENGELLENMEZ, sadece frontend'de destekleyici bir bilgi kutusu tetikler.
+    @Column(name = "flagged_sensitive", nullable = false)
+    @Builder.Default
+    private boolean flaggedSensitive = false;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -1,0 +1,68 @@
+# ContentModerationServiceImpl tarafından yüklenir. Tam KELİME eşleşmesiyle
+# karşılaştırılır (alt dize değil) - bkz. servisin containsBannedWord metodu.
+# Bir satır bir kelime; # ile başlayan satırlar ve boş satırlar yok sayılır.
+# Kapsam bilerek dar tutuldu: yaygın küfür/hakaret kökleri + spam belirteçleri.
+# Amaç mükemmel bir filtre değil, en belirgin kötüye kullanımı engellemek.
+amk
+amq
+mk
+aq
+oç
+oc
+piç
+pic
+yavşak
+yavsak
+şerefsiz
+serefsiz
+orospu
+kahpe
+ibne
+göt
+got
+siktir
+sik
+sikerim
+sikeyim
+sikik
+yarrak
+yarak
+amcık
+amcik
+taşşak
+tassak
+pezevenk
+gerizekalı
+gerizekali
+salak
+aptal
+dallama
+ananı
+anani
+avradını
+avradini
+bok
+boktan
+lanet
+kevaşe
+kevase
+sürtük
+surtuk
+kaltak
+puşt
+pust
+ibnelik
+şıllık
+sillik
+manyak
+angut
+embesil
+geri zekalı
+kasmayı
+kasmayi
+spam
+casino
+bahis
+bedava-para
+kazandiran-site
+kazandıran-site

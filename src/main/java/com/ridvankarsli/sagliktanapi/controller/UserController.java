@@ -1,10 +1,12 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.dto.request.DeleteAccountRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.UpdateProfileRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.UserDataExportResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
@@ -17,10 +19,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,6 +67,30 @@ public class UserController {
     @DeleteMapping("/me")
     public void deactivate(@AuthenticationPrincipal CustomUserDetails principal) {
         userService.deactivate(principal.getId());
+    }
+
+    // KVKK "veri taşınabilirliği" hakkı - kullanıcı kendi verisini JSON
+    // olarak indirebilir. Var olan DELETE /me (deactivate, geri alınabilir)
+    // ile karışmasın diye ayrı bir path altında (bkz. UserService.exportData).
+    @GetMapping("/me/data-export")
+    public ResponseEntity<UserDataExportResponse> exportMyData(@AuthenticationPrincipal CustomUserDetails principal) {
+        UserDataExportResponse data = userService.exportData(principal.getId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sagliktan-verilerim.json\"")
+                .body(data);
+    }
+
+    // Hesap silme - GERİ ALINAMAZ, mevcut DELETE /me (deactivate) ile
+    // karıştırılmasın diye kasıtlı olarak farklı bir path ve HTTP metodu
+    // (POST, çünkü gövde/şifre teyidi taşıyor) kullanılıyor (bkz.
+    // UserService.deleteAccount javadoc'u - içerik korunur, sadece kimlik
+    // anonimleştirilir).
+    @PostMapping("/me/delete-account")
+    public void deleteAccount(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @Valid @RequestBody DeleteAccountRequest request
+    ) {
+        userService.deleteAccount(principal.getId(), request.password());
     }
 
     @GetMapping("/me/disease-groups")

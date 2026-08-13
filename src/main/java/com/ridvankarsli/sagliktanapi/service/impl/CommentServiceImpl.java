@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.service.CommentService;
+import com.ridvankarsli.sagliktanapi.service.ContentModerationService;
 import com.ridvankarsli.sagliktanapi.service.OwnershipGuard;
 import com.ridvankarsli.sagliktanapi.util.SearchQueryUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class CommentServiceImpl implements CommentService {
     private final UserRepository userRepository;
     private final UserDiseaseGroupRepository userDiseaseGroupRepository;
     private final OwnershipGuard ownershipGuard;
+    private final ContentModerationService contentModerationService;
 
     @Override
     @Transactional
@@ -44,12 +46,14 @@ public class CommentServiceImpl implements CommentService {
         assertMemberOfGroup(userId, post.getSubGroup().getDiseaseGroup().getId());
 
         Comment parent = resolveParent(parentCommentId, postId);
+        boolean sensitive = moderateOrThrow(content);
 
         Comment comment = Comment.builder()
                 .post(post)
                 .user(user)
                 .content(content)
                 .parentComment(parent)
+                .flaggedSensitive(sensitive)
                 .build();
 
         return commentRepository.save(comment);
@@ -97,7 +101,9 @@ public class CommentServiceImpl implements CommentService {
         if (comment.isDeleted()) {
             throw new BadRequestException("Silinmiş bir yorum düzenlenemez");
         }
+        boolean sensitive = moderateOrThrow(content);
         comment.setContent(content);
+        comment.setFlaggedSensitive(sensitive);
         return commentRepository.save(comment);
     }
 
@@ -138,5 +144,17 @@ public class CommentServiceImpl implements CommentService {
             throw new BadRequestException("Yanıt verilen yorum bu gönderiye ait değil");
         }
         return parent;
+    }
+
+    // Rapor: küfür/spam içeriyorsa (blocked) BadRequestException fırlatılır;
+    // kriz sinyali taşıyorsa (bloklamadan) true döner (bkz.
+    // ContentModerationService javadoc'u / PostServiceImpl.moderateOrThrow
+    // ile aynı desen).
+    private boolean moderateOrThrow(String content) {
+        ContentModerationService.ModerationResult result = contentModerationService.moderate(content);
+        if (result.blocked()) {
+            throw new BadRequestException(result.blockReason());
+        }
+        return result.sensitive();
     }
 }
