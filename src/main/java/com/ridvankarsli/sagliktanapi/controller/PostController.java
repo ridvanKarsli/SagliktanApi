@@ -83,6 +83,17 @@ public class PostController {
         return postResponseAssembler.assemble(page, principal.getId());
     }
 
+    // Ana sayfa akışı: kullanıcının üye olduğu tüm gruplardaki gönderiler,
+    // tek bir zaman sıralı akışta (bkz. Home.jsx). assembleFeed kullanılıyor
+    // ki her post hangi gruptan geldiğini de taşısın - listBySubGroup/search
+    // gibi tek bağlamlı listelerde bu bilgi zaten örtük (URL'den belli),
+    // burada değil.
+    @GetMapping("/api/posts/feed")
+    public PageResponse<PostResponse> feed(Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal) {
+        Page<Post> page = postService.getFeedForUser(principal.getId(), pageable);
+        return postResponseAssembler.assembleFeed(page, principal.getId());
+    }
+
     // Rapor 4.5: PostgreSQL Full-Text Search (platform geneli)
     @GetMapping("/api/posts/search")
     public PageResponse<PostResponse> search(

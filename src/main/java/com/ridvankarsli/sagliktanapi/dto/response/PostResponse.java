@@ -16,6 +16,13 @@ public record PostResponse(
         // gösterilmiyor, backend zaten reddediyordu ama arayüz bunu
         // saklamıyordu).
         Long diseaseGroupId,
+        // Ana sayfa karışık akışında (bkz. PostResponseAssembler.assembleFeed)
+        // her gönderinin hangi alt/hastalık grubundan geldiğini göstermek
+        // için dolduruluyor - tek bir alt grup bağlamında zaten bilinen diğer
+        // tüm listelerde (Posts.jsx, arama, profil vb.) null kalıyor, gereksiz
+        // veri taşınmasın diye.
+        String subGroupName,
+        String diseaseGroupName,
         Long authorId,
         String authorName,
         String title,
@@ -45,10 +52,21 @@ public record PostResponse(
             Post post, ReactionSummary reactions, boolean saved, long savedCount,
             List<PostAttachmentResponse> attachments
     ) {
+        return from(post, reactions, saved, savedCount, attachments, null, null);
+    }
+
+    // Ana sayfa akışı için: alt grup/hastalık grubu ismini de dolduran hâli
+    // (bkz. PostResponseAssembler.assembleFeed).
+    public static PostResponse from(
+            Post post, ReactionSummary reactions, boolean saved, long savedCount,
+            List<PostAttachmentResponse> attachments, String subGroupName, String diseaseGroupName
+    ) {
         return new PostResponse(
                 post.getId(),
                 post.getSubGroup().getId(),
                 post.getSubGroup().getDiseaseGroup().getId(),
+                subGroupName,
+                diseaseGroupName,
                 post.getUser().getId(),
                 post.getUser().getFullName(),
                 post.getTitle(),

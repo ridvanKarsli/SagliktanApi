@@ -21,6 +21,10 @@ public interface PostService {
 
     Page<Post> listByUser(Long userId, Pageable pageable);
 
+    // Ana sayfa akışı: kullanıcının üye olduğu tüm gruplardaki gönderiler,
+    // tek bir zaman sıralı akış hâlinde (bkz. PostRepository.findFeedForUser).
+    Page<Post> getFeedForUser(Long userId, Pageable pageable);
+
     Page<Post> search(String query, Pageable pageable);
 
     Page<Post> searchBySubGroup(Long subGroupId, String query, Pageable pageable);

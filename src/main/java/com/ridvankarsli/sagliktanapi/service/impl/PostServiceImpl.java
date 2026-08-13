@@ -91,6 +91,15 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public Page<Post> getFeedForUser(Long userId, Pageable pageable) {
+        // findFeedForUser kendi ORDER BY'ını taşıyor - listBySubGroup/search
+        // ile aynı gerekçeyle (bkz. SearchQueryUtil.stripSort javadoc) çift
+        // ORDER BY Postgres syntax hatasını önlemek için Pageable'dan Sort'u
+        // temizliyoruz.
+        return postRepository.findFeedForUser(userId, SearchQueryUtil.stripSort(pageable));
+    }
+
+    @Override
     public Page<Post> search(String query, Pageable pageable) {
         String tsQuery = SearchQueryUtil.toPrefixTsQuery(query);
         if (tsQuery == null) {

@@ -6,6 +6,7 @@ import com.ridvankarsli.sagliktanapi.domain.ReactionTargetType;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostAttachmentResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
+import com.ridvankarsli.sagliktanapi.repository.SubGroupRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 // Bir (veya bir sayfa) Post'u, isteği yapan kullanıcıya göre reaksiyon
 // özeti + kaydetme durumu/sayısı + fotoğraflarla zenginleştirip
@@ -29,10 +31,46 @@ public class PostResponseAssembler {
     private final SavedPostService savedPostService;
     private final PostAttachmentService postAttachmentService;
     private final MediaStorageService mediaStorageService;
+    private final SubGroupRepository subGroupRepository;
 
     public PageResponse<PostResponse> assemble(Page<Post> page, Long viewerId) {
         Enrichment enrichment = enrich(page.getContent(), viewerId);
         return PageResponse.from(page.map(post -> toResponse(post, enrichment)));
+    }
+
+    // Ana sayfa akışı: assemble() ile aynı reaksiyon/kaydetme/fotoğraf
+    // zenginleştirmesi + ayrıca hangi alt/hastalık grubundan geldiği (bkz.
+    // SubGroupRepository.findNameProjectionsByIdIn - N+1'siz tek sorgu).
+    // Sadece karışık akışta anlamlı olduğu için ayrı bir metot; assemble()'ı
+    // her çağıran yerde (tek alt grup bağlamı zaten belli) gereksiz bir
+    // sorguyla yormuyoruz.
+    public PageResponse<PostResponse> assembleFeed(Page<Post> page, Long viewerId) {
+        List<Post> posts = page.getContent();
+        Enrichment enrichment = enrich(posts, viewerId);
+        Map<Long, SubGroupRepository.SubGroupNameProjection> namesBySubGroupId = fetchSubGroupNames(posts);
+        return PageResponse.from(page.map(post -> {
+            SubGroupRepository.SubGroupNameProjection names = namesBySubGroupId.get(post.getSubGroup().getId());
+            String subGroupName = names != null ? names.getSubGroupName() : null;
+            String diseaseGroupName = names != null ? names.getDiseaseGroupName() : null;
+            return PostResponse.from(
+                    post,
+                    enrichment.reactions().get(post.getId()),
+                    enrichment.savedIds().contains(post.getId()),
+                    enrichment.savedCounts().get(post.getId()),
+                    toAttachmentResponses(enrichment.attachmentsByPost().getOrDefault(post.getId(), List.of())),
+                    subGroupName,
+                    diseaseGroupName
+            );
+        }));
+    }
+
+    private Map<Long, SubGroupRepository.SubGroupNameProjection> fetchSubGroupNames(List<Post> posts) {
+        Set<Long> subGroupIds = posts.stream().map(p -> p.getSubGroup().getId()).collect(Collectors.toSet());
+        if (subGroupIds.isEmpty()) {
+            return Map.of();
+        }
+        return subGroupRepository.findNameProjectionsByIdIn(subGroupIds).stream()
+                .collect(Collectors.toMap(SubGroupRepository.SubGroupNameProjection::getSubGroupId, p -> p));
     }
 
     public List<PostResponse> assemble(List<Post> posts, Long viewerId) {

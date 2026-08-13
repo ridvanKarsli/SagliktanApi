@@ -47,6 +47,30 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     // Alt grup listesinde gösterilen sohbet (post) sayısı
     long countBySubGroupId(Long subGroupId);
 
+    // Ana sayfa akışı: kullanıcının üye olduğu TÜM hastalık gruplarındaki
+    // (birden fazla alt grup üzerinden) gönderileri, hangi alt gruptan
+    // geldiğine bakmaksızın tek bir zaman sıralı akışta birleştirir -
+    // Twitter/Instagram ana sayfası gibi. user_disease_groups -> sub_groups
+    // -> posts join zinciri diğer join'li sorgularla (searchBySubGroup,
+    // findBySubGroupIdOrderByPopularityDesc) aynı native query konvansiyonunu
+    // izliyor. p.id DESC ikincil sıralama: aynı created_at değerine sahip
+    // (aynı transaction'da oluşmuş) satırlar arasında bile deterministik
+    // sayfalama garantisi (bkz. görev #111 - sayfalanan uçlarda determinizm).
+    // Kendi ORDER BY'ını taşıdığı için çağıran taraf (PostServiceImpl)
+    // Pageable'ı SearchQueryUtil.stripSort ile vermeli.
+    @Query(
+            value = "SELECT p.* FROM posts p " +
+                    "JOIN sub_groups sg ON sg.id = p.sub_group_id " +
+                    "JOIN user_disease_groups udg ON udg.disease_group_id = sg.disease_group_id " +
+                    "WHERE udg.user_id = :userId " +
+                    "ORDER BY p.created_at DESC, p.id DESC",
+            countQuery = "SELECT count(*) FROM posts p " +
+                    "JOIN sub_groups sg ON sg.id = p.sub_group_id " +
+                    "JOIN user_disease_groups udg ON udg.disease_group_id = sg.disease_group_id " +
+                    "WHERE udg.user_id = :userId",
+            nativeQuery = true)
+    Page<Post> findFeedForUser(@Param("userId") Long userId, Pageable pageable);
+
     Page<Post> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     // Profil sayfasındaki "Gönderi" istatistiği - bkz. UserController.
