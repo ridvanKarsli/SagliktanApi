@@ -9,6 +9,7 @@ import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.ReactionRepository;
+import com.ridvankarsli.sagliktanapi.repository.RefreshSessionRepository;
 import com.ridvankarsli.sagliktanapi.repository.SavedPostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
@@ -51,6 +52,8 @@ class UserServiceImplTest {
     private UserDiseaseGroupRepository userDiseaseGroupRepository;
     @Mock
     private SavedPostRepository savedPostRepository;
+    @Mock
+    private RefreshSessionRepository refreshSessionRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
 
@@ -101,6 +104,9 @@ class UserServiceImplTest {
         assertEquals("yeni-rastgele-hash", user.getPasswordHash());
         verify(userRepository).save(user);
         verify(savedPostRepository).deleteByUserId(USER_ID);
+        // Hesap silinince tüm cihazlardaki oturumlar da geçersiz olmalı (bkz.
+        // UserServiceImpl.deleteAccount yorumu, görev #305).
+        verify(refreshSessionRepository).deleteByUserId(USER_ID);
     }
 
     // Rapor: grup üyelikleri İÇERİK değil (bkz. UserServiceImpl.deleteAccount
