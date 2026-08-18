@@ -110,19 +110,26 @@ public class SecurityConfig {
                 // /api/auth/verify-email (GET) - basit bir inline-style'lı HTML onay
                 // sayfası (bkz. AuthController#confirmationPage), dış kaynak
                 // yüklemiyor - CSP'yi ona göre en kısıtlayıcı şekilde ayarladık.
-                .headers(headers -> headers
-                        .frameOptions(frame -> frame.deny())
-                        .contentTypeOptions(Customizer.withDefaults())
-                        .referrerPolicy(referrer -> referrer
-                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                        .permissionsPolicy(permissions -> permissions
-                                .policy("geolocation=(), camera=(), microphone=(), payment=(), usb=()"))
-                        .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"))
-                        .httpStrictTransportSecurity(hsts -> hsts
-                                .includeSubDomains(true)
-                                .maxAgeInSeconds(31536000))
-                )
+                // Not: bu bloktaki her satır bilerek AYRI bir "headers.xxx(...)" çağrısı
+                // olarak yazıldı, birbirine ZİNCİRLEME (chained) değil - permissionsPolicy(...)
+                // bu Spring Security sürümünde (deprecated/kaldırılmak üzere) HeadersConfigurer
+                // DEĞİL kendi alt-config tipini (PermissionsPolicyConfig) döndürüyor, bu yüzden
+                // ardından .contentSecurityPolicy(...) zincirlemek derleme hatası veriyordu.
+                // Her çağrıyı doğrudan "headers" değişkeni üzerinden yaparak dönüş tipinden
+                // bağımsız, sürüm değişikliklerine karşı daha dayanıklı hale getirdik.
+                .headers(headers -> {
+                    headers.frameOptions(frame -> frame.deny());
+                    headers.contentTypeOptions(Customizer.withDefaults());
+                    headers.referrerPolicy(referrer -> referrer
+                            .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
+                    headers.permissionsPolicy(permissions -> permissions
+                            .policy("geolocation=(), camera=(), microphone=(), payment=(), usb=()"));
+                    headers.contentSecurityPolicy(csp -> csp
+                            .policyDirectives("default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"));
+                    headers.httpStrictTransportSecurity(hsts -> hsts
+                            .includeSubDomains(true)
+                            .maxAgeInSeconds(31536000));
+                })
                 // KRİTİK: Spring Security varsayılan olarak token'sız her isteğe bir
                 // AnonymousAuthenticationToken atar ve bu token'ın isAuthenticated()'ı
                 // true döner - bu yüzden anonymous() devre dışı bırakılmadan
