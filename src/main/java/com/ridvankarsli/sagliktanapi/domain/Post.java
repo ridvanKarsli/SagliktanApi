@@ -58,6 +58,14 @@ public class Post {
     @Builder.Default
     private boolean flaggedSensitive = false;
 
+    // Faz6: sabitlenmiş gönderi (bkz. V20 migration - kullanıcı başına en
+    // fazla bir tane, DB'de PARTIAL unique index ile garanti ediliyor).
+    // Servis katmanı (PostServiceImpl.pin) yeni bir post sabitlerken
+    // kullanıcının önceki sabitlenmiş postunu otomatik kaldırıyor.
+    @Column(name = "pinned", nullable = false)
+    @Builder.Default
+    private boolean pinned = false;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

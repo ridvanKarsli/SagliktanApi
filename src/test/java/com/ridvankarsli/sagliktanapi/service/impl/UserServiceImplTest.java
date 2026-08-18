@@ -136,7 +136,7 @@ class UserServiceImplTest {
         UserDiseaseGroup membership = UserDiseaseGroup.builder()
                 .id(new UserDiseaseGroupId(USER_ID, 10L)).user(user).diseaseGroup(group).build();
 
-        when(postRepository.findByUserIdOrderByCreatedAtDesc(eq(USER_ID), any())).thenReturn(Page.empty());
+        when(postRepository.findByUserIdOrderByPinnedDescCreatedAtDesc(eq(USER_ID), any())).thenReturn(Page.empty());
         when(commentRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(userDiseaseGroupRepository.findById_UserId(USER_ID)).thenReturn(List.of(membership));
         when(savedPostRepository.findSavedPostsByUserId(eq(USER_ID), any())).thenReturn(Page.empty());

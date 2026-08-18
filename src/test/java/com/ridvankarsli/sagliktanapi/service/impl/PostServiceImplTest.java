@@ -223,4 +223,54 @@ class PostServiceImplTest {
         verify(postRepository).searchBySubGroup(eq(SUB_GROUP_ID), eq("diyabet"), any(), captor.capture());
         assertEquals(Sort.unsorted(), captor.getValue().getSort());
     }
+
+    // Faz6: sabitlenmiş gönderi - bkz. PostServiceImpl.pin javadoc'u (bilinçli
+    // olarak OwnershipGuard.assertOwnerOrAdmin KULLANMIYOR, sadece gerçek
+    // sahiplik).
+    @Test
+    void pin_throwsForbidden_whenRequesterIsNotOwner() {
+        Post post = Post.builder().id(1L).user(user).pinned(false).build();
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThrows(ForbiddenException.class, () -> postService.pin(1L, 999L));
+
+        verify(postRepository, never()).save(any());
+    }
+
+    @Test
+    void pin_unpinsPreviousPinnedPost_beforePinningNewOne() {
+        Post previouslyPinned = Post.builder().id(2L).user(user).pinned(true).build();
+        Post toPin = Post.builder().id(1L).user(user).pinned(false).build();
+        when(postRepository.findById(1L)).thenReturn(Optional.of(toPin));
+        when(postRepository.findByUserIdAndPinnedTrue(USER_ID)).thenReturn(Optional.of(previouslyPinned));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Post result = postService.pin(1L, USER_ID);
+
+        assertEquals(false, previouslyPinned.isPinned());
+        assertEquals(true, result.isPinned());
+        verify(postRepository).save(previouslyPinned);
+        verify(postRepository).save(toPin);
+    }
+
+    @Test
+    void unpin_throwsForbidden_whenRequesterIsNotOwner() {
+        Post post = Post.builder().id(1L).user(user).pinned(true).build();
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThrows(ForbiddenException.class, () -> postService.unpin(1L, 999L));
+
+        verify(postRepository, never()).save(any());
+    }
+
+    @Test
+    void unpin_setsPinnedFalse_whenRequesterIsOwner() {
+        Post post = Post.builder().id(1L).user(user).pinned(true).build();
+        when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(postRepository.save(any(Post.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Post result = postService.unpin(1L, USER_ID);
+
+        assertEquals(false, result.isPinned());
+    }
 }

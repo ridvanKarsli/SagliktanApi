@@ -87,10 +87,16 @@ public class PostController {
     // tek bir zaman sıralı akışta (bkz. Home.jsx). assembleFeed kullanılıyor
     // ki her post hangi gruptan geldiğini de taşısın - listBySubGroup/search
     // gibi tek bağlamlı listelerde bu bilgi zaten örtük (URL'den belli),
-    // burada değil.
+    // burada değil. Faz6: ?sort=recent|popular - listBySubGroup'taki aynı
+    // desen (bkz. yukarıdaki javadoc), en çok kullanılan ekranda sıralama
+    // seçeneği hiç yoktu.
     @GetMapping("/api/posts/feed")
-    public PageResponse<PostResponse> feed(Pageable pageable, @AuthenticationPrincipal CustomUserDetails principal) {
-        Page<Post> page = postService.getFeedForUser(principal.getId(), pageable);
+    public PageResponse<PostResponse> feed(
+            @RequestParam(defaultValue = "recent") String sort,
+            Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Page<Post> page = postService.getFeedForUser(principal.getId(), PostSortOption.fromParam(sort), pageable);
         return postResponseAssembler.assembleFeed(page, principal.getId());
     }
 
@@ -155,6 +161,23 @@ public class PostController {
     public void delete(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
         boolean isAdmin = principal.isAdmin();
         postService.delete(id, principal.getId(), isAdmin);
+    }
+
+    // Faz6: sabitlenmiş gönderi. save/unsave ile aynı REST desenini izliyor
+    // (PUT = sabitle - idempotent, DELETE = sabiti kaldır). PostServiceImpl.pin
+    // zaten önceki sabitlenmiş postu otomatik kaldırıyor, bu yüzden burada
+    // sadece sonucu döndürüyoruz - frontend yeniden zenginleştirilmiş
+    // (assembleOne) PostResponse'u alıp UI'ı güncelliyor.
+    @PutMapping("/api/posts/{id}/pin")
+    public PostResponse pin(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        Post post = postService.pin(id, principal.getId());
+        return postResponseAssembler.assembleOne(post, principal.getId());
+    }
+
+    @DeleteMapping("/api/posts/{id}/pin")
+    public PostResponse unpin(@PathVariable Long id, @AuthenticationPrincipal CustomUserDetails principal) {
+        Post post = postService.unpin(id, principal.getId());
+        return postResponseAssembler.assembleOne(post, principal.getId());
     }
 
     @PostMapping("/api/posts/{id}/report")

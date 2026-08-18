@@ -44,6 +44,10 @@ public record PostResponse(
         // frontend destekleyici bir kaynak bilgisi (182 ALO Yaşam Hattı)
         // gösterir - bu alan içeriği ASLA gizlemez/engellemez.
         boolean flaggedSensitive,
+        // Faz6: sabitlenmiş gönderi (bkz. V20 migration + PostServiceImpl.pin).
+        // Profil sayfaları (Profile.jsx/UserProfile.jsx) bu alanı görünce
+        // gönderiyi "Gönderiler" sekmesinin en üstünde bir rozetle gösteriyor.
+        boolean pinned,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -82,6 +86,7 @@ public record PostResponse(
                 savedCount,
                 attachments,
                 post.isFlaggedSensitive(),
+                post.isPinned(),
                 post.getCreatedAt(),
                 post.getUpdatedAt()
         );

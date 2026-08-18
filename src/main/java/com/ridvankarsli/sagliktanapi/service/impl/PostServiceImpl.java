@@ -92,16 +92,22 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Page<Post> listByUser(Long userId, Pageable pageable) {
-        return postRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        // Faz6: sabitlenmiş gönderi (varsa) her zaman en başta - bkz.
+        // PostRepository.findByUserIdOrderByPinnedDescCreatedAtDesc javadoc'u.
+        return postRepository.findByUserIdOrderByPinnedDescCreatedAtDesc(userId, pageable);
     }
 
     @Override
-    public Page<Post> getFeedForUser(Long userId, Pageable pageable) {
-        // findFeedForUser kendi ORDER BY'ını taşıyor - listBySubGroup/search
-        // ile aynı gerekçeyle (bkz. SearchQueryUtil.stripSort javadoc) çift
-        // ORDER BY Postgres syntax hatasını önlemek için Pageable'dan Sort'u
-        // temizliyoruz.
-        return postRepository.findFeedForUser(userId, SearchQueryUtil.stripSort(pageable));
+    public Page<Post> getFeedForUser(Long userId, PostSortOption sort, Pageable pageable) {
+        // findFeedForUser/findFeedForUserOrderByPopularityDesc kendi ORDER
+        // BY'ını taşıyor - listBySubGroup/search ile aynı gerekçeyle (bkz.
+        // SearchQueryUtil.stripSort javadoc) çift ORDER BY Postgres syntax
+        // hatasını önlemek için Pageable'dan Sort'u temizliyoruz.
+        Pageable safePageable = SearchQueryUtil.stripSort(pageable);
+        if (sort == PostSortOption.POPULAR) {
+            return postRepository.findFeedForUserOrderByPopularityDesc(userId, safePageable);
+        }
+        return postRepository.findFeedForUser(userId, safePageable);
     }
 
     @Override
@@ -161,6 +167,45 @@ public class PostServiceImpl implements PostService {
         // key'leri hâlâ okunabilirken temizleniyor.
         postAttachmentService.deleteAllForPost(postId);
         postRepository.delete(post);
+    }
+
+    // Faz6: sabitlenmiş gönderi - kasıtlı olarak OwnershipGuard.assertOwnerOrAdmin
+    // KULLANILMIYOR (update/delete'in aksine). Bu bir moderasyon işlemi değil,
+    // saf bir profil kişiselleştirmesi - bir admin'in başka bir kullanıcının
+    // profilinde neyin öne çıkacağına karar vermesi anlamsız/istenmeyen bir
+    // yetki genişlemesi olurdu, bu yüzden burada gerçek sahiplik dışında
+    // istisna yok.
+    @Override
+    @Transactional
+    public Post pin(Long postId, Long userId) {
+        Post post = getById(postId);
+        if (!post.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("Sadece kendi gönderinizi sabitleyebilirsiniz");
+        }
+        if (post.isPinned()) {
+            return post;
+        }
+        // Önce varsa mevcut sabitlenmiş postu kaldır - V20'deki PARTIAL unique
+        // index (posts.user_id WHERE pinned) zaten bunu DB seviyesinde
+        // zorunlu kılıyor, burada önceden temizlemezsek constraint violation
+        // fırlardı.
+        postRepository.findByUserIdAndPinnedTrue(userId).ifPresent(previous -> {
+            previous.setPinned(false);
+            postRepository.save(previous);
+        });
+        post.setPinned(true);
+        return postRepository.save(post);
+    }
+
+    @Override
+    @Transactional
+    public Post unpin(Long postId, Long userId) {
+        Post post = getById(postId);
+        if (!post.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("Sadece kendi gönderinizin sabitini kaldırabilirsiniz");
+        }
+        post.setPinned(false);
+        return postRepository.save(post);
     }
 
     // Kullanıcı, gönderi paylaşacağı alt grubun bağlı olduğu hastalık grubuna

@@ -94,7 +94,12 @@ public class UserServiceImpl implements UserService {
     public UserDataExportResponse exportData(Long userId) {
         User user = getById(userId);
 
-        List<Post> myPosts = postRepository.findByUserIdOrderByCreatedAtDesc(userId, Pageable.unpaged()).getContent();
+        // Faz6: PostRepository.findByUserIdOrderByCreatedAtDesc, sabitlenmiş
+        // gönderiyi de en başa alan findByUserIdOrderByPinnedDescCreatedAtDesc
+        // ile değiştirildi (bkz. o metodun javadoc'u) - veri dışa aktarmada
+        // sıralamanın önemi yok, aynı isim/imza bulunmadığı için buradaki
+        // çağrı da güncellendi.
+        List<Post> myPosts = postRepository.findByUserIdOrderByPinnedDescCreatedAtDesc(userId, Pageable.unpaged()).getContent();
         List<Comment> myComments = commentRepository.findByUserIdOrderByCreatedAtDesc(userId);
         List<String> groupNames = userDiseaseGroupRepository.findById_UserId(userId).stream()
                 .map(udg -> udg.getDiseaseGroup().getName())

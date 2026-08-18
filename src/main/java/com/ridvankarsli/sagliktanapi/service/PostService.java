@@ -23,7 +23,8 @@ public interface PostService {
 
     // Ana sayfa akışı: kullanıcının üye olduğu tüm gruplardaki gönderiler,
     // tek bir zaman sıralı akış hâlinde (bkz. PostRepository.findFeedForUser).
-    Page<Post> getFeedForUser(Long userId, Pageable pageable);
+    // Faz6: listBySubGroup ile aynı PostSortOption (RECENT/POPULAR) burada da.
+    Page<Post> getFeedForUser(Long userId, PostSortOption sort, Pageable pageable);
 
     Page<Post> search(String query, Pageable pageable);
 
@@ -40,4 +41,15 @@ public interface PostService {
     Post update(Long postId, Long requesterId, boolean requesterIsAdmin, String title, String content);
 
     void delete(Long postId, Long requesterId, boolean requesterIsAdmin);
+
+    // Faz6: sabitlenmiş gönderi - X'teki "hakkımda" niteliğindeki bir
+    // gönderiyi profilde öne çıkarma özelliği. Sadece gönderi sahibi
+    // sabitleyebilir/kaldırabilir (moderasyon amaçlı bir işlem olmadığı
+    // için update/delete'in aksine admin override YOK - bkz.
+    // PostServiceImpl.pin javadoc'u). Kullanıcı başına en fazla bir
+    // sabitlenmiş gönderi (bkz. V20 migration'daki PARTIAL unique index) -
+    // yeni bir post sabitlenirken varsa öncekisi otomatik kaldırılır.
+    Post pin(Long postId, Long userId);
+
+    Post unpin(Long postId, Long userId);
 }

@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface PostRepository extends JpaRepository<Post, Long> {
 
     // OrderByCreatedAtDesc: Pageable sort taşımıyorsa (client sort
@@ -71,7 +73,43 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             nativeQuery = true)
     Page<Post> findFeedForUser(@Param("userId") Long userId, Pageable pageable);
 
-    Page<Post> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    // Faz6: ana sayfa akışına da alt grup listesindekiyle (bkz.
+    // findBySubGroupIdOrderByPopularityDesc) aynı "Yeni/Popüler" seçimi
+    // eklendi - kullanıcı geri bildirimi: "en çok kullanılan ekranda
+    // sıralama seçeneği yok". Aynı join zinciri (user_disease_groups ->
+    // sub_groups -> posts) + aynı popülerlik hesaplama (reaksiyon +
+    // kaydedilme sayısı toplamı) korunuyor, sadece ORDER BY değişiyor.
+    @Query(
+            value = "SELECT p.* FROM posts p " +
+                    "JOIN sub_groups sg ON sg.id = p.sub_group_id " +
+                    "JOIN user_disease_groups udg ON udg.disease_group_id = sg.disease_group_id " +
+                    "LEFT JOIN reactions r ON r.target_type = 'POST' AND r.target_id = p.id AND r.value = 'HELPFUL' " +
+                    "LEFT JOIN saved_posts sp ON sp.post_id = p.id " +
+                    "WHERE udg.user_id = :userId " +
+                    "GROUP BY p.id " +
+                    "ORDER BY (COUNT(DISTINCT r.id) + COUNT(DISTINCT sp.id)) DESC, p.created_at DESC, p.id DESC",
+            countQuery = "SELECT count(*) FROM posts p " +
+                    "JOIN sub_groups sg ON sg.id = p.sub_group_id " +
+                    "JOIN user_disease_groups udg ON udg.disease_group_id = sg.disease_group_id " +
+                    "WHERE udg.user_id = :userId",
+            nativeQuery = true)
+    Page<Post> findFeedForUserOrderByPopularityDesc(@Param("userId") Long userId, Pageable pageable);
+
+    // Faz6: sabitlenmiş gönderi (varsa) profildeki listenin her zaman en
+    // başında - "pinned DESC" (true > false Postgres'te 1 > 0 muamelesi
+    // görür) birincil, "created_at DESC" ikincil kriter. Bu bir JPA
+    // TÜREV (derived) sorgusu - native değil - bu yüzden çağıran taraf
+    // (PostServiceImpl.listByUser) diğer native sorgularda zorunlu olan
+    // SearchQueryUtil.stripSort'a ihtiyaç duymuyor: Spring Data JPA,
+    // Pageable'daki Sort'u JPQL'e ek ORDER BY olarak güvenle birleştirir,
+    // native query'lerdeki gibi çift ORDER BY syntax hatası riski yok.
+    Page<Post> findByUserIdOrderByPinnedDescCreatedAtDesc(Long userId, Pageable pageable);
+
+    // Faz6: bir kullanıcının o an sabitlenmiş postu (varsa) - yeni bir post
+    // sabitlenirken öncekini otomatik kaldırmak için (bkz.
+    // PostServiceImpl.pin). En fazla bir sonuç bekleniyor (V20'deki PARTIAL
+    // unique index bunu garanti ediyor).
+    java.util.Optional<Post> findByUserIdAndPinnedTrue(Long userId);
 
     // Profil sayfasındaki "Gönderi" istatistiği - bkz. UserController.
     long countByUserId(Long userId);
