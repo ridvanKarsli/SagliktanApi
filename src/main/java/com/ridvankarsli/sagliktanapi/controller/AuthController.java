@@ -11,8 +11,11 @@ import com.ridvankarsli.sagliktanapi.dto.response.AuthResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.MessageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
+import com.ridvankarsli.sagliktanapi.security.JwtAuthenticationFilter;
 import com.ridvankarsli.sagliktanapi.service.AuthService;
 import com.ridvankarsli.sagliktanapi.service.AuthTokens;
+import com.ridvankarsli.sagliktanapi.util.UserAgentParser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -97,9 +100,23 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
-        AuthTokens tokens = authService.login(request.email(), request.password());
+    public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String deviceLabel = UserAgentParser.toDeviceLabel(httpRequest.getHeader("User-Agent"));
+        String ipAddress = resolveClientIp(httpRequest);
+        AuthTokens tokens = authService.login(request.email(), request.password(), deviceLabel, ipAddress);
         return AuthResponse.from(tokens);
+    }
+
+    // Railway/Vercel gibi proxy arkasında çalışırken gerçek istemci IP'si
+    // X-Forwarded-For header'ının İLK değerinde olur (getRemoteAddr() proxy'nin
+    // kendi IP'sini döner). Header yoksa (ör. lokal geliştirme) getRemoteAddr()'a
+    // düşülür.
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/refresh")
@@ -131,11 +148,17 @@ public class AuthController {
         return new MessageResponse("Şifre sıfırlandı");
     }
 
-    // Stateless JWT: gerçek sunucu taraflı invalidation yok (bkz. AuthServiceImpl
-    // notu), bu endpoint sadece authenticated olmayı zorunlu kılıp istemciye
-    // token'ı silmesini hatırlatıyor.
+    // "Aktif Oturumlar" (görev #305) öncesi burada gerçek sunucu taraflı
+    // invalidation yoktu, sadece istemciye token silme hatırlatması vardı.
+    // Artık bu oturuma ait refresh token DB'de revoke ediliyor (bkz.
+    // AuthServiceImpl.revokeCurrentSession) - bu yüzden /auth/refresh bu
+    // oturumla bir daha çalışmaz. Access token'ın kendisi stateless olduğu
+    // için süresi (en fazla 1 saat) dolana kadar geçerli kalır - bu bilinen
+    // ve kabul edilen bir sınır (bkz. RefreshSession ile ilgili notlar).
     @PostMapping("/logout")
-    public MessageResponse logout(@AuthenticationPrincipal CustomUserDetails principal) {
-        return new MessageResponse("Çıkış yapıldı. Lütfen istemci tarafında token'ı silin.");
+    public MessageResponse logout(@AuthenticationPrincipal CustomUserDetails principal, HttpServletRequest request) {
+        String sessionId = (String) request.getAttribute(JwtAuthenticationFilter.CURRENT_SESSION_ID_ATTRIBUTE);
+        authService.revokeCurrentSession(principal.getId(), sessionId);
+        return new MessageResponse("Çıkış yapıldı.");
     }
 }

@@ -6,15 +6,19 @@ import com.ridvankarsli.sagliktanapi.dto.request.UpdateProfileRequest;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
+import com.ridvankarsli.sagliktanapi.dto.response.RefreshSessionResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserDataExportResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
+import com.ridvankarsli.sagliktanapi.security.JwtAuthenticationFilter;
+import com.ridvankarsli.sagliktanapi.service.AuthService;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import com.ridvankarsli.sagliktanapi.service.PostResponseAssembler;
 import com.ridvankarsli.sagliktanapi.service.PostService;
 import com.ridvankarsli.sagliktanapi.service.SavedPostService;
 import com.ridvankarsli.sagliktanapi.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -44,6 +48,7 @@ public class UserController {
     private final PostService postService;
     private final SavedPostService savedPostService;
     private final PostResponseAssembler postResponseAssembler;
+    private final AuthService authService;
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
@@ -149,5 +154,27 @@ public class UserController {
     ) {
         Page<Post> page = postService.listByUser(id, pageable);
         return postResponseAssembler.assemble(page, principal.getId());
+    }
+
+    // "Aktif Oturumlar" (görev #305/#306): Profile > Ayarlar altında kullanıcının
+    // kendi cihaz/oturum listesi. currentSessionId, JwtAuthenticationFilter'ın bu
+    // isteği doğrularken request'e koyduğu attribute'tan okunur - böylece listede
+    // "şu an kullandığın oturum" işaretlenebilir.
+    @GetMapping("/me/sessions")
+    public List<RefreshSessionResponse> listSessions(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            HttpServletRequest request
+    ) {
+        String currentSessionId = (String) request.getAttribute(JwtAuthenticationFilter.CURRENT_SESSION_ID_ATTRIBUTE);
+        return authService.listActiveSessions(principal.getId()).stream()
+                .map(session -> RefreshSessionResponse.from(session, currentSessionId))
+                .toList();
+    }
+
+    // id burada RefreshSession.id (DB PK) - JWT'deki sid (UUID) değil, bkz.
+    // AuthService.revokeSession javadoc'u. Sahiplik kontrolü servis katmanında.
+    @DeleteMapping("/me/sessions/{id}")
+    public void revokeSession(@AuthenticationPrincipal CustomUserDetails principal, @PathVariable Long id) {
+        authService.revokeSession(principal.getId(), id);
     }
 }

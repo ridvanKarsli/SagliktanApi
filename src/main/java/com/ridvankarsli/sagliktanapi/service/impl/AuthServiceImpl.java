@@ -1,5 +1,6 @@
 package com.ridvankarsli.sagliktanapi.service.impl;
 
+import com.ridvankarsli.sagliktanapi.domain.RefreshSession;
 import com.ridvankarsli.sagliktanapi.domain.Role;
 import com.ridvankarsli.sagliktanapi.domain.User;
 import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
@@ -7,6 +8,7 @@ import com.ridvankarsli.sagliktanapi.exception.ForbiddenException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceAlreadyExistsException;
 import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.exception.UnauthorizedException;
+import com.ridvankarsli.sagliktanapi.repository.RefreshSessionRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetailsService;
@@ -26,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final CustomUserDetailsService userDetailsService;
     private final EmailService emailService;
     private final EmailValidator emailValidator;
+    private final RefreshSessionRepository refreshSessionRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
     // SADECE E2E/test ortamı için: true olduğunda kayıt anında e-posta
@@ -177,7 +182,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public AuthTokens login(String email, String rawPassword) {
+    @Transactional
+    public AuthTokens login(String email, String rawPassword, String deviceLabel, String ipAddress) {
         // NOT: getUserOrThrow yerine findByEmail - e-posta kayıtlı değilse
         // de yanlış şifreyle AYNI 401/mesajı dönmeli, aksi halde bu uç
         // (login) kayıtlı e-postaları 404 ile açığa çıkaran bir email
@@ -198,13 +204,27 @@ public class AuthServiceImpl implements AuthService {
         }
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
+        String sessionId = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now();
+
+        refreshSessionRepository.save(RefreshSession.builder()
+                .user(user)
+                .sessionId(sessionId)
+                .deviceLabel(deviceLabel)
+                .ipAddress(ipAddress)
+                .lastUsedAt(now)
+                .expiresAt(now.plus(Duration.ofMillis(jwtService.getRefreshTokenExpirationMs())))
+                .revoked(false)
+                .build());
+
         return new AuthTokens(
-                jwtService.generateAccessToken(userDetails),
-                jwtService.generateRefreshToken(userDetails)
+                jwtService.generateAccessToken(userDetails, sessionId),
+                jwtService.generateRefreshToken(userDetails, sessionId)
         );
     }
 
     @Override
+    @Transactional
     public AuthTokens refresh(String refreshToken) {
         String email;
         try {
@@ -223,10 +243,82 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Geçersiz veya süresi dolmuş refresh token");
         }
 
+        // Deaktive/silinmiş bir hesabın süresi dolmamış bir refresh token'ı
+        // hâlâ elinde olsa bile yenileyememesi gerekir - isTokenValid bunu
+        // KONTROL ETMİYOR (sadece kullanıcı adı eşleşmesi + süre bakıyor).
+        if (!userDetails.isEnabled()) {
+            throw new ForbiddenException("Hesap pasif durumda");
+        }
+
+        // "Aktif Oturumlar" (görev #305): sid claim'i olmayan (bu değişiklikten
+        // ÖNCE üretilmiş) eski bir refresh token'la karşılaşılırsa reddetmek
+        // yerine sessizce yeni bir oturum başlatıyoruz - kullanıcıyı gereksiz
+        // yere login'e atmak yerine geriye dönük uyumluluk tercih edildi.
+        String sessionId = jwtService.extractSessionId(refreshToken);
+        RefreshSession session = sessionId != null
+                ? refreshSessionRepository.findBySessionId(sessionId).orElse(null)
+                : null;
+
+        if (session != null) {
+            if (session.isRevoked()) {
+                throw new UnauthorizedException("Bu oturum sonlandırılmış, lütfen tekrar giriş yapın");
+            }
+            session.setLastUsedAt(LocalDateTime.now());
+            session.setExpiresAt(LocalDateTime.now().plus(Duration.ofMillis(jwtService.getRefreshTokenExpirationMs())));
+            refreshSessionRepository.save(session);
+        } else {
+            sessionId = UUID.randomUUID().toString();
+            LocalDateTime now = LocalDateTime.now();
+            refreshSessionRepository.save(RefreshSession.builder()
+                    .user(((CustomUserDetails) userDetails).getUser())
+                    .sessionId(sessionId)
+                    .deviceLabel(null)
+                    .ipAddress(null)
+                    .lastUsedAt(now)
+                    .expiresAt(now.plus(Duration.ofMillis(jwtService.getRefreshTokenExpirationMs())))
+                    .revoked(false)
+                    .build());
+        }
+
         return new AuthTokens(
-                jwtService.generateAccessToken(userDetails),
-                jwtService.generateRefreshToken(userDetails)
+                jwtService.generateAccessToken(userDetails, sessionId),
+                jwtService.generateRefreshToken(userDetails, sessionId)
         );
+    }
+
+    @Override
+    public List<RefreshSession> listActiveSessions(Long userId) {
+        return refreshSessionRepository.findByUserIdAndRevokedFalseOrderByLastUsedAtDesc(userId);
+    }
+
+    @Override
+    @Transactional
+    public void revokeSession(Long userId, Long sessionRowId) {
+        RefreshSession session = refreshSessionRepository.findById(sessionRowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Oturum bulunamadı"));
+
+        if (!session.getUser().getId().equals(userId)) {
+            // Bilerek "bulunamadı" (403 değil) - başka bir kullanıcının
+            // oturum kimliklerinin var olup olmadığını dışarıya sızdırmamak
+            // için (aynı email enumeration önleme prensibi, bkz. login/
+            // verifyEmail'deki notlar).
+            throw new ResourceNotFoundException("Oturum bulunamadı");
+        }
+
+        session.setRevoked(true);
+        refreshSessionRepository.save(session);
+    }
+
+    @Override
+    @Transactional
+    public void revokeCurrentSession(Long userId, String sessionId) {
+        if (sessionId == null) return;
+        refreshSessionRepository.findBySessionId(sessionId).ifPresent(session -> {
+            if (session.getUser().getId().equals(userId)) {
+                session.setRevoked(true);
+                refreshSessionRepository.save(session);
+            }
+        });
     }
 
     @Override

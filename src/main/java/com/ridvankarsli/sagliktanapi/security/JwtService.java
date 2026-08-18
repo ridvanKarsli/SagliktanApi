@@ -33,12 +33,27 @@ public class JwtService {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
-    public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(Map.of("type", "access"), userDetails, accessTokenExpirationMs);
+    // "Aktif Oturumlar" (görev #305): sid claim'i bir refresh token'ı DB'deki
+    // RefreshSession satırına bağlar - ham token asla saklanmıyor, sadece bu
+    // rastgele kimlik. Access token'a da AYNI sid ekleniyor ki bir API isteği
+    // sırasında "bu istek hangi oturumdan geliyor" bilinsin (bkz.
+    // JwtAuthenticationFilter'ın request'e sid'i attribute olarak koyması) -
+    // bu da kullanıcıya "şu an kullandığın oturum" bilgisini göstermeyi
+    // (current: true) mümkün kılıyor.
+    public String generateAccessToken(UserDetails userDetails, String sessionId) {
+        return buildToken(Map.of("type", "access", "sid", sessionId), userDetails, accessTokenExpirationMs);
     }
 
-    public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(Map.of("type", "refresh"), userDetails, refreshTokenExpirationMs);
+    public String generateRefreshToken(UserDetails userDetails, String sessionId) {
+        return buildToken(Map.of("type", "refresh", "sid", sessionId), userDetails, refreshTokenExpirationMs);
+    }
+
+    public String extractSessionId(String token) {
+        return extractClaim(token, claims -> claims.get("sid", String.class));
+    }
+
+    public long getRefreshTokenExpirationMs() {
+        return refreshTokenExpirationMs;
     }
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expirationMs) {

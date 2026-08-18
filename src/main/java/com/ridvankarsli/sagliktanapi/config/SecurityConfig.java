@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,6 +23,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -100,6 +102,27 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Faz 3-2a: HTTP güvenlik başlıkları. frameOptions/contentTypeOptions/
+                // HSTS Spring Security'de zaten varsayılan olarak açık, ama sürüm
+                // farklılıklarına bağlı kalmamak için burada AÇIKÇA tanımlıyoruz -
+                // "muhtemelen zaten açık" bir güvenlik denetiminde kabul edilebilir
+                // bir varsayım değil. Bu API neredeyse tamamen JSON döner; tek istisna
+                // /api/auth/verify-email (GET) - basit bir inline-style'lı HTML onay
+                // sayfası (bkz. AuthController#confirmationPage), dış kaynak
+                // yüklemiyor - CSP'yi ona göre en kısıtlayıcı şekilde ayarladık.
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny())
+                        .contentTypeOptions(Customizer.withDefaults())
+                        .referrerPolicy(referrer -> referrer
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .permissionsPolicy(permissions -> permissions
+                                .policy("geolocation=(), camera=(), microphone=(), payment=(), usb=()"))
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000))
+                )
                 // KRİTİK: Spring Security varsayılan olarak token'sız her isteğe bir
                 // AnonymousAuthenticationToken atar ve bu token'ın isAuthenticated()'ı
                 // true döner - bu yüzden anonymous() devre dışı bırakılmadan

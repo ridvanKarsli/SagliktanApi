@@ -11,6 +11,7 @@ import com.ridvankarsli.sagliktanapi.exception.ResourceNotFoundException;
 import com.ridvankarsli.sagliktanapi.repository.CommentRepository;
 import com.ridvankarsli.sagliktanapi.repository.PostRepository;
 import com.ridvankarsli.sagliktanapi.repository.ReactionRepository;
+import com.ridvankarsli.sagliktanapi.repository.RefreshSessionRepository;
 import com.ridvankarsli.sagliktanapi.repository.SavedPostRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserDiseaseGroupRepository;
 import com.ridvankarsli.sagliktanapi.repository.UserRepository;
@@ -37,6 +38,7 @@ public class UserServiceImpl implements UserService {
     private final ReactionRepository reactionRepository;
     private final UserDiseaseGroupRepository userDiseaseGroupRepository;
     private final SavedPostRepository savedPostRepository;
+    private final RefreshSessionRepository refreshSessionRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -153,5 +155,9 @@ public class UserServiceImpl implements UserService {
                     userId, membership.getDiseaseGroup().getId());
         }
         savedPostRepository.deleteByUserId(userId);
+        // Hesap silindiğinde tüm cihazlardaki oturumlar da geçersiz olsun -
+        // aksi halde silinmiş bir hesabın refresh token'ı (henüz süresi
+        // dolmadıysa) teorik olarak yenilenebilirdi (bkz. RefreshSession).
+        refreshSessionRepository.deleteByUserId(userId);
     }
 }

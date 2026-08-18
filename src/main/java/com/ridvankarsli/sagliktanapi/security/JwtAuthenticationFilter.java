@@ -25,6 +25,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String HEADER_NAME = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
 
+    // UserController.listSessions() bu attribute'u okuyarak listedeki hangi
+    // satırın "current: true" olacağını belirler (bkz. doFilterInternal).
+    public static final String CURRENT_SESSION_ID_ATTRIBUTE = "currentSessionId";
+
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
 
@@ -59,6 +63,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    // "Aktif Oturumlar" (görev #305/#306): bu isteğin hangi oturumdan
+                    // geldiğini controller'ların bilebilmesi için sid'i request
+                    // attribute'u olarak taşıyoruz (ör. "şu an kullandığın oturum"
+                    // rozetini UserController'da işaretlemek için). Eski (bu
+                    // değişiklikten önce üretilmiş) access token'larda sid claim'i
+                    // olmayabilir - CURRENT_SESSION_ID_ATTRIBUTE o durumda null kalır.
+                    request.setAttribute(CURRENT_SESSION_ID_ATTRIBUTE, jwtService.extractSessionId(token));
                 }
             }
         } catch (JwtException | IllegalArgumentException e) {
