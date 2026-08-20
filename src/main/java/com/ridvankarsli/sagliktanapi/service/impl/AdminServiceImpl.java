@@ -120,6 +120,12 @@ public class AdminServiceImpl implements AdminService {
                 case POST -> postService.delete(report.getTargetId(), adminId, true);
                 case COMMENT -> commentService.delete(report.getTargetId(), adminId, true);
                 case MESSAGE -> messageService.deleteAsAdmin(report.getTargetId());
+                // USER şikayetleri bir içerik değil, kullanıcının kendisi hakkında -
+                // "içeriği sil" burada anlamsız (silinecek tek bir post/yorum/mesaj
+                // yok). Hesabı deaktive/silme zaten ayrı, kasıtlı bir admin akışı
+                // (bkz. UsersTab.jsx) - rapor çözümlemesiyle örtük olarak
+                // tetiklenmiyor, admin panelde bilinçli bir aksiyon.
+                case USER -> { }
             }
         }
 
@@ -169,6 +175,14 @@ public class AdminServiceImpl implements AdminService {
                             m.getSender().getFullName()
                     ))
                     .orElseGet(() -> new AdminReportItem(report, "[Mesaj silinmiş]", null, null));
+            case USER -> userRepository.findById(report.getTargetId())
+                    .map(u -> new AdminReportItem(
+                            report,
+                            truncate(u.getFullName() + (u.getBio() != null ? " — " + u.getBio() : "")),
+                            u.getId(),
+                            u.getFullName()
+                    ))
+                    .orElseGet(() -> new AdminReportItem(report, "[Kullanıcı silinmiş]", null, null));
         };
     }
 

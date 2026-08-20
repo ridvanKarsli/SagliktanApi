@@ -53,12 +53,14 @@ public class ContentReportServiceImpl implements ContentReportService {
             case POST -> postRepository.existsById(targetId);
             case COMMENT -> commentRepository.existsById(targetId);
             case MESSAGE -> messageRepository.existsById(targetId);
+            case USER -> userRepository.existsById(targetId);
         };
         if (!exists) {
             throw new ResourceNotFoundException(switch (targetType) {
                 case POST -> "Gönderi bulunamadı";
                 case COMMENT -> "Yorum bulunamadı";
                 case MESSAGE -> "Mesaj bulunamadı";
+                case USER -> "Kullanıcı bulunamadı";
             });
         }
     }

@@ -1,8 +1,11 @@
 package com.ridvankarsli.sagliktanapi.controller;
 
 import com.ridvankarsli.sagliktanapi.domain.Post;
+import com.ridvankarsli.sagliktanapi.domain.ReportTargetType;
 import com.ridvankarsli.sagliktanapi.dto.request.DeleteAccountRequest;
+import com.ridvankarsli.sagliktanapi.dto.request.ReportRequest;
 import com.ridvankarsli.sagliktanapi.dto.request.UpdateProfileRequest;
+import com.ridvankarsli.sagliktanapi.exception.BadRequestException;
 import com.ridvankarsli.sagliktanapi.dto.response.DiseaseGroupResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PageResponse;
 import com.ridvankarsli.sagliktanapi.dto.response.PostResponse;
@@ -13,6 +16,7 @@ import com.ridvankarsli.sagliktanapi.dto.response.UserSearchResponse;
 import com.ridvankarsli.sagliktanapi.security.CustomUserDetails;
 import com.ridvankarsli.sagliktanapi.security.JwtAuthenticationFilter;
 import com.ridvankarsli.sagliktanapi.service.AuthService;
+import com.ridvankarsli.sagliktanapi.service.ContentReportService;
 import com.ridvankarsli.sagliktanapi.service.DiseaseGroupService;
 import com.ridvankarsli.sagliktanapi.service.PostResponseAssembler;
 import com.ridvankarsli.sagliktanapi.service.PostService;
@@ -49,6 +53,7 @@ public class UserController {
     private final SavedPostService savedPostService;
     private final PostResponseAssembler postResponseAssembler;
     private final AuthService authService;
+    private final ContentReportService contentReportService;
 
     @GetMapping("/me")
     public UserResponse getProfile(@AuthenticationPrincipal CustomUserDetails principal) {
@@ -146,6 +151,22 @@ public class UserController {
                 userService.getById(id),
                 stats.postCount(), stats.commentCount(), stats.likesReceived(), stats.dislikesReceived()
         );
+    }
+
+    // Faz7-8: profilden doğrudan kullanıcı şikayeti - önceden şikayet sadece
+    // bir sohbet içindeyken bir mesaj üzerinden mümkündü (bkz.
+    // MessageController.report), rahatsız edici bir profille daha ilk
+    // temasta (mesajlaşmadan önce) karşılaşan biri için erişilemezdi.
+    @PostMapping("/{id}/report")
+    public void report(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @Valid @RequestBody ReportRequest request
+    ) {
+        if (id.equals(principal.getId())) {
+            throw new BadRequestException("Kendi profilini şikayet edemezsin");
+        }
+        contentReportService.report(ReportTargetType.USER, id, principal.getId(), request.reason());
     }
 
     @GetMapping("/{id}/posts")
